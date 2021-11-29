@@ -2,16 +2,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 neuralNetwork *createNetwork(int numLayers, int *layerSizes)
 {
     neuralNetwork *network = (neuralNetwork *)malloc(sizeof(neuralNetwork));
     network->numLayers = numLayers;
     network->layerSizes = (int *)malloc(sizeof(int) * numLayers);
+    network->maxLayerSize = 0;
     for (int i = 0; i < numLayers; i++)
     {
         network->layerSizes[i] = layerSizes[i];
+        if (i > 0 && layerSizes[i] > network->maxLayerSize)
+        {
+            network->maxLayerSize = layerSizes[i];
+        }
     }
+
     network->layers = (networkLayer **)malloc(sizeof(networkLayer *) * numLayers);
 
     for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
@@ -82,4 +89,89 @@ void initNetworkWeights(neuralNetwork *net)
             }
         }
     }
+}
+
+void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues)
+{
+    // node delta
+    float errors[net->numLayers - 1][net->maxLayerSize]; // minus 1 because input has no error
+    for (int i = 0; i < net->numLayers; i++)
+    {
+        for (int j = 0; j < net->maxLayerSize; j++)
+        {
+            errors[i][j] = 0;
+        }
+    }
+
+    // activation values
+    float values[net->numLayers][net->maxLayerSize];
+    for (int i = 0; i < net->numLayers; i++)
+    {
+        for (int j = 0; j < net->maxLayerSize; j++)
+        {
+            errors[i][j] = 0;
+        }
+    }
+
+    for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
+    {
+        for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
+        {
+            // load training sample
+            for (int nodeIndex = 0; nodeIndex < net->layerSizes[0]; nodeIndex ++)
+            {
+                values[0][nodeIndex] = trainingData[dataIndex][nodeIndex];
+            }
+            // forward compute
+            // start with first hidden layer
+            for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+            {
+                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    float sum = 0;
+                    sum += net->layers[layerIndex]->bias;
+                    for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+                    {
+                        float prevLayerValue = values[layerIndex - 1][weightIndex];
+                        float weight = net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex];
+                        sum += prevLayerValue * weight;
+                    }
+                    values[layerIndex][nodeIndex] = activationFunction(sum);
+                }
+            }
+            // find error of layers
+            for (int layerIndex = net->numLayers - 1; layerIndex > 0; layerIndex --)
+            {
+                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    if (layerIndex == net->numLayers - 1)
+                    {
+                        // special case for output layer
+                        float value = values[layerIndex][nodeIndex];
+                        float actual = trueValues[dataIndex][nodeIndex];
+                        errors[layerIndex][nodeIndex] =
+                            value *
+                            (1 - value) *
+                            (value - actual);
+                    }
+                    else
+                    {
+                        float sum = 0;
+                        for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < net->layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
+                        {
+                            sum += net->layers[layerIndex + 1]->nodes[nextLayerNodeIndex]->inWeights[nodeIndex] *
+                                errors[layerIndex + 1][nextLayerNodeIndex];
+                        }
+                        float value = values[layerIndex][nodeIndex];
+                        errors[layerIndex][nodeIndex] = sum * value * (1 - value);
+                    }
+                }
+            }
+        }
+    }
+}
+
+float activationFunction(float x)
+{
+    return (float)(1.0f / (1 + exp(x * (-1))));
 }
