@@ -123,6 +123,34 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
             {
                 values[0][nodeIndex] = trainingData[dataIndex][nodeIndex];
             }
+            if (iterationIndex == 0 && dataIndex == 1)
+            {
+                printf("Training Data\n");
+                for (int i = 0; i < numTrainingData; i++)
+                {
+                    printf("[%d] ", i);
+                    for (int j = 0; j < net->layerSizes[0]; j++)
+                    {
+                        printf("%.4f ", trainingData[i][j]);
+                    }
+                    printf("(");
+                    for (int j = 0; j < net->layerSizes[net->numLayers - 1]; j++)
+                    {
+                        printf("%.4f ", trueValues[i][j]);
+                    }
+                    printf(")\n");
+                }
+                printf("Values\n");
+                for (int i = 0; i < net->numLayers; i++)
+                {
+                    printf("[%d] ", i);
+                    for (int j = 0; j < net->maxLayerSize; j++)
+                    {
+                        printf("%.4f ", values[i][j]);
+                    }
+                    printf("\n");
+                }
+            }
             // forward compute
             // start with first hidden layer
             for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
