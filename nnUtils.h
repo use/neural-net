@@ -22,7 +22,7 @@ void printNetwork(neuralNetwork *);
 
 void initNetworkWeights(neuralNetwork *);
 
-void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, float **trueValues);
+void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues, float learnRate);
 
 int maxLayerSize(neuralNetwork *net);
 
