@@ -165,7 +165,7 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                         sum += prevLayerValue * weight;
                     }
                     // add bias
-                    sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex]];
+                    sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]];
                     values[layerIndex][nodeIndex] = activationFunction(sum);
                 }
             }
@@ -267,7 +267,7 @@ float *classify(neuralNetwork *net, float *sample)
                 sum += prevLayerValue * weight;
             }
             // add bias
-            sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex]];
+            sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]];
             values[layerIndex][nodeIndex] = activationFunction(sum);
         }
     }
