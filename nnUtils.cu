@@ -63,7 +63,7 @@ void printNetwork(neuralNetwork *net)
                 int numWeights = net->layerSizes[layerIndex - 1] + 1;
                 for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
                 {
-                    printf("%.2f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
+                    printf("%.4f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
                     if (weightIndex == numWeights - 1)
                     {
                         printf("(bias)");
@@ -187,6 +187,26 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                         learnRate *
                         errors[layerIndex][nodeIndex];
                 }
+            }
+        }
+
+        if (
+            iterationIndex < 11 ||
+            iterationIndex == 100 ||
+            iterationIndex == 1000 ||
+            iterationIndex == 10000 ||
+            iterationIndex == numIterations - 1
+        )
+        {
+            printf("\nIteration %d\n", iterationIndex);
+            for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
+            {
+                printf("[%d] ", layerIndex);
+                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    printf("%.4f ", errors[layerIndex][nodeIndex]);
+                }
+                printf("\n");
             }
         }
     }
