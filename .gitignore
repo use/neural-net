@@ -1,0 +1,6 @@
+*.swp
+*.o
+test
+*.out
+*.dSYM
+.vscode
