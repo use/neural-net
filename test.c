@@ -1,6 +1,7 @@
 #include "nnUtils.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 int main(void)
 {
@@ -60,4 +61,6 @@ int main(void)
         printf("(%d) %f  ", i, result[i]);
     }
     printf("\n");
+
+    assert(result[0] - 0 < .01 && result[1] - 1 < .01);
 }
