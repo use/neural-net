@@ -216,45 +216,44 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                         errors[layerIndex][nodeIndex];
                 }
             }
-        }
-
-        if (
-            iterationIndex < 11 ||
-            iterationIndex == 100 ||
-            iterationIndex == 1000 ||
-            iterationIndex == 10000 ||
-            iterationIndex == numIterations - 1
-        )
-        {
-            printf("\nIteration %d\n", iterationIndex);
-            printf("(Last training sample)\n");
-            for (int dataNodeIndex = 0; dataNodeIndex < net->layerSizes[0]; dataNodeIndex ++)
+            if (
+                iterationIndex < 11 ||
+                iterationIndex == 100 ||
+                iterationIndex == 1000 ||
+                iterationIndex == 10000 ||
+                iterationIndex == numIterations - 1
+            )
             {
-                printf("%.6f ", trainingData[numTrainingData - 1][dataNodeIndex]);
-            }
-            printf("\n");
-            printf("(Value data below)\n");
-            for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
-            {
-                printf("[%d] ", layerIndex);
-                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                printf("\nIteration %d\n", iterationIndex);
+                printf("(Training sample)\n");
+                for (int dataNodeIndex = 0; dataNodeIndex < net->layerSizes[0]; dataNodeIndex ++)
                 {
-                    printf("%.6f ", values[layerIndex][nodeIndex]);
+                    printf("%.6f ", trainingData[dataIndex][dataNodeIndex]);
                 }
                 printf("\n");
-            }
-            printf("(Error data below)\n");
-            for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
-            {
-                printf("[%d] ", layerIndex);
-                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                printf("(Value data below)\n");
+                for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
                 {
-                    printf("%.6f ", errors[layerIndex][nodeIndex]);
+                    printf("[%d] ", layerIndex);
+                    for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                    {
+                        printf("%.6f ", values[layerIndex][nodeIndex]);
+                    }
+                    printf("\n");
                 }
-                printf("\n");
+                printf("(Error data below)\n");
+                for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
+                {
+                    printf("[%d] ", layerIndex);
+                    for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                    {
+                        printf("%.6f ", errors[layerIndex][nodeIndex]);
+                    }
+                    printf("\n");
+                }
+                printf("Printing network for iteration %d\n", iterationIndex);
+                printNetwork(net);
             }
-            printf("Printing network for iteration %d\n", iterationIndex);
-            printNetwork(net);
         }
     }
 }
