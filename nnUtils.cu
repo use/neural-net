@@ -169,6 +169,25 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                     }
                 }
             }
+
+            // update weights
+            for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+            {
+                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+                    {
+                        net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] -=
+                            learnRate *
+                            errors[layerIndex][nodeIndex] *
+                            values[layerIndex - 1][weightIndex];
+                    }
+                    // update bias
+                    net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]] -=
+                        learnRate *
+                        errors[layerIndex][nodeIndex];
+                }
+            }
         }
     }
 }
