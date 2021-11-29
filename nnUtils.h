@@ -9,7 +9,6 @@ typedef struct neuralNetwork
 typedef struct networkLayer
 {
     struct networkNode **nodes;
-    float bias;
 } networkLayer;
 
 typedef struct networkNode
@@ -26,3 +25,5 @@ void initNetworkWeights(neuralNetwork *);
 void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, float **trueValues);
 
 int maxLayerSize(neuralNetwork *net);
+
+float activationFunction(float x);

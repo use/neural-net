@@ -24,7 +24,6 @@ neuralNetwork *createNetwork(int numLayers, int *layerSizes)
     for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
     {
         networkLayer *layer = (networkLayer *)malloc(sizeof(networkLayer));
-        layer->bias = 0.75f;
         layer->nodes = (networkNode **)malloc(sizeof(networkNode *) * layerSizes[layerIndex]);
         for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
         {
@@ -35,8 +34,9 @@ neuralNetwork *createNetwork(int numLayers, int *layerSizes)
             }
             else
             {
-                node->inWeights = (float *)malloc(sizeof(float) * layerSizes[layerIndex - 1]);
-                for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex++)
+                int numWeights = 1 + layerSizes[layerIndex - 1]; // +1 for bias
+                node->inWeights = (float *)malloc(sizeof(float) * numWeights);
+                for (int weightIndex = 0; weightIndex < numWeights; weightIndex++)
                 {
                     node->inWeights[weightIndex] = 0.5f;
                 }
@@ -54,19 +54,20 @@ void printNetwork(neuralNetwork *net)
     {
         printf("\n---<Layer %d>\n", layerIndex);
         printf("Layer size: %d\n", net->layerSizes[layerIndex]);
-        if (layerIndex > 0)
-        {
-            printf("Bias: %.2f\n", net->layers[layerIndex]->bias);
-        }
         for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex++)
         {
             printf("[%d] ", nodeIndex);
             if (layerIndex > 0)
             {
                 // print weights pointing to this node
-                for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+                int numWeights = net->layerSizes[layerIndex - 1] + 1;
+                for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
                 {
                     printf("%.2f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
+                    if (weightIndex == numWeights - 1)
+                    {
+                        printf("(bias)");
+                    }
                 }
                 printf("   ");
             }
@@ -80,10 +81,10 @@ void initNetworkWeights(neuralNetwork *net)
     srand(time(NULL));
     for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
     {
-        net->layers[layerIndex]->bias = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
         for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
         {
-            for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+            int numWeights = 1 + net->layerSizes[layerIndex - 1];
+            for (int weightIndex = 0; weightIndex < 1 + numWeights; weightIndex ++)
             {
                 net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
             }
@@ -91,7 +92,7 @@ void initNetworkWeights(neuralNetwork *net)
     }
 }
 
-void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues)
+void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues, float learnRate)
 {
     // node delta
     float errors[net->numLayers - 1][net->maxLayerSize]; // minus 1 because input has no error
@@ -129,13 +130,14 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                 for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
                 {
                     float sum = 0;
-                    sum += net->layers[layerIndex]->bias;
                     for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
                     {
                         float prevLayerValue = values[layerIndex - 1][weightIndex];
                         float weight = net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex];
                         sum += prevLayerValue * weight;
                     }
+                    // add bias
+                    sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex]];
                     values[layerIndex][nodeIndex] = activationFunction(sum);
                 }
             }
