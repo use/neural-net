@@ -63,7 +63,7 @@ void printNetwork(neuralNetwork *net)
                 int numWeights = net->layerSizes[layerIndex - 1] + 1;
                 for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
                 {
-                    printf("%.4f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
+                    printf("%.6f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
                     if (weightIndex == numWeights - 1)
                     {
                         printf("(bias)");
@@ -227,15 +227,34 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
         )
         {
             printf("\nIteration %d\n", iterationIndex);
+            printf("(Last training sample)\n");
+            for (int dataNodeIndex = 0; dataNodeIndex < net->layerSizes[0]; dataNodeIndex ++)
+            {
+                printf("%.6f ", trainingData[numTrainingData - 1][dataNodeIndex]);
+            }
+            printf("\n");
+            printf("(Value data below)\n");
             for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
             {
                 printf("[%d] ", layerIndex);
                 for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
                 {
-                    printf("%.4f ", errors[layerIndex][nodeIndex]);
+                    printf("%.6f ", values[layerIndex][nodeIndex]);
                 }
                 printf("\n");
             }
+            printf("(Error data below)\n");
+            for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
+            {
+                printf("[%d] ", layerIndex);
+                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    printf("%.6f ", errors[layerIndex][nodeIndex]);
+                }
+                printf("\n");
+            }
+            printf("Printing network for iteration %d\n", iterationIndex);
+            printNetwork(net);
         }
     }
 }

@@ -4,7 +4,7 @@
 
 int main(void)
 {
-    int layerSizes[3] = {2, 2, 2};
+    int layerSizes[3] = {2, 3, 2};
     neuralNetwork *net = createNetwork(3, layerSizes);
     printNetwork(net);
     initNetworkWeights(net);
@@ -48,6 +48,13 @@ int main(void)
     sample[1] = 1.0;
     float *result = classify(net, sample);
 
+    printf("classification input:\n");
+    for (int i = 0; i < 2; i++)
+    {
+        printf("(%d) %f  ", i, sample[i]);
+    }
+    printf("\n");
+    printf("classification result:\n");
     for (int i = 0; i < 2; i++)
     {
         printf("(%d) %f  ", i, result[i]);
