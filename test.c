@@ -1,9 +1,10 @@
 #include "nnUtils.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 int main(void)
 {
-    int layerSizes[3] = {2, 3, 2};
+    int layerSizes[3] = {2, 2, 2};
     neuralNetwork *net = createNetwork(3, layerSizes);
     printNetwork(net);
     initNetworkWeights(net);

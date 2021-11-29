@@ -84,7 +84,7 @@ void initNetworkWeights(neuralNetwork *net)
         for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
         {
             int numWeights = 1 + net->layerSizes[layerIndex - 1];
-            for (int weightIndex = 0; weightIndex < 1 + numWeights; weightIndex ++)
+            for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
             {
                 net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
             }
