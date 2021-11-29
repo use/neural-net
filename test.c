@@ -44,23 +44,28 @@ int main(void)
 
     printNetwork(net);
 
-    float *sample = (float *)malloc(2 * sizeof(float));
-    sample[0] = 1.0;
-    sample[1] = 1.0;
-    float *result = classify(net, sample);
-
-    printf("classification input:\n");
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 4; i++)
     {
-        printf("(%d) %f  ", i, sample[i]);
-    }
-    printf("\n");
-    printf("classification result:\n");
-    for (int i = 0; i < 2; i++)
-    {
-        printf("(%d) %f  ", i, result[i]);
-    }
-    printf("\n");
+        float *sample = (float *)malloc(2 * sizeof(float));
+        sample[0] = trainData[i][0];
+        sample[1] = trainData[i][1];
+        float *result = classify(net, sample);
 
-    assert(result[0] - 0 < .01 && result[1] - 1 < .01);
+        printf("classification input:\n");
+        for (int i = 0; i < 2; i++)
+        {
+            printf("(%d) %f  ", i, sample[i]);
+        }
+        printf("\n");
+        printf("classification result:\n");
+        for (int i = 0; i < 2; i++)
+        {
+            printf("(%d) %f  ", i, result[i]);
+        }
+        printf("\n");
+        assert(
+            result[0] - trueValues[i][0] < .01 &&
+            result[1] - trueValues[i][1] < .01
+        );
+    }
 }
