@@ -95,7 +95,7 @@ void initNetworkWeights(neuralNetwork *net)
 void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues, float learnRate)
 {
     // node delta
-    float errors[net->numLayers - 1][net->maxLayerSize]; // minus 1 because input has no error
+    float errors[net->numLayers][net->maxLayerSize];
     for (int i = 0; i < net->numLayers; i++)
     {
         for (int j = 0; j < net->maxLayerSize; j++)
