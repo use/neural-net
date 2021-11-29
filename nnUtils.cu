@@ -1,5 +1,7 @@
 #include "nnUtils.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 neuralNetwork *createNetwork(int numLayers, int *layerSizes)
 {
@@ -47,7 +49,7 @@ void printNetwork(neuralNetwork *net)
         printf("Layer size: %d\n", net->layerSizes[layerIndex]);
         if (layerIndex > 0)
         {
-            printf("Bias: %f\n", net->layers[layerIndex]->bias);
+            printf("Bias: %.2f\n", net->layers[layerIndex]->bias);
         }
         for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex++)
         {
@@ -63,5 +65,21 @@ void printNetwork(neuralNetwork *net)
             }
         }
         printf("\n");
+    }
+}
+
+void initNetworkWeights(neuralNetwork *net)
+{
+    srand(time(NULL));
+    for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+    {
+        net->layers[layerIndex]->bias = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
+        for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+        {
+            for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+            {
+                net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
+            }
+        }
     }
 }

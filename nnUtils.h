@@ -19,3 +19,5 @@ typedef struct networkNode
 neuralNetwork *createNetwork(int numLayers, int *layerSizes);
 
 void printNetwork(neuralNetwork *);
+
+void initNetworkWeights(neuralNetwork *);
