@@ -110,7 +110,7 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
     {
         for (int j = 0; j < net->maxLayerSize; j++)
         {
-            errors[i][j] = 0;
+            values[i][j] = 0;
         }
     }
 
@@ -210,6 +210,45 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
             }
         }
     }
+}
+
+float *classify(neuralNetwork *net, float *sample)
+{
+    float values[net->numLayers][net->maxLayerSize];
+    for (int i = 0; i < net->numLayers; i++)
+    {
+        for (int j = 0; j < net->maxLayerSize; j++)
+        {
+            values[i][j] = 0;
+        }
+    }
+    // load input layer from provided sample
+    for (int nodeIndex = 0; nodeIndex < net->layerSizes[0]; nodeIndex ++)
+    {
+        values[0][nodeIndex] = sample[nodeIndex];
+    }
+    for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+    {
+        for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+        {
+            float sum = 0;
+            for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+            {
+                float prevLayerValue = values[layerIndex - 1][weightIndex];
+                float weight = net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex];
+                sum += prevLayerValue * weight;
+            }
+            // add bias
+            sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex]];
+            values[layerIndex][nodeIndex] = activationFunction(sum);
+        }
+    }
+    float *out = (float *)malloc(sizeof(int) * net->layerSizes[net->numLayers - 1]);
+    for (int nodeIndex = 0; nodeIndex < net->layerSizes[net->numLayers - 1]; nodeIndex ++)
+    {
+        out[nodeIndex] = values[net->numLayers - 1][nodeIndex];
+    }
+    return out;
 }
 
 float activationFunction(float x)

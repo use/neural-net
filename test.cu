@@ -38,7 +38,18 @@ int main(void)
         }
     }
 
-    trainNetwork(net, trainData, 4, 100001, trueValues, .02);
+    trainNetwork(net, trainData, 4, 1000001, trueValues, .05);
 
     printNetwork(net);
+
+    float *sample = (float *)malloc(2 * sizeof(float));
+    sample[0] = 1.0;
+    sample[1] = 1.0;
+    float *result = classify(net, sample);
+
+    for (int i = 0; i < 2; i++)
+    {
+        printf("(%d) %f  ", i, result[i]);
+    }
+    printf("\n");
 }

@@ -27,3 +27,5 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
 int maxLayerSize(neuralNetwork *net);
 
 float activationFunction(float x);
+
+float *classify(neuralNetwork *net, float *sample);
