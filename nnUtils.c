@@ -4,66 +4,72 @@
 #include <time.h>
 #include <math.h>
 
-neuralNetwork *createNetwork(int numLayers, int *layerSizes)
+int max(int numValues, int *values)
 {
-    neuralNetwork *network = (neuralNetwork *)malloc(sizeof(neuralNetwork));
-    network->numLayers = numLayers;
-    network->layerSizes = (int *)malloc(sizeof(int) * numLayers);
-    network->maxLayerSize = 0;
-    for (int i = 0; i < numLayers; i++)
+    int max = 0;
+    for (int i = 0; i < numValues; i++)
     {
-        network->layerSizes[i] = layerSizes[i];
-        if (i > 0 && layerSizes[i] > network->maxLayerSize)
+        if (values[i] > max)
         {
-            network->maxLayerSize = layerSizes[i];
+            max = values[i];
         }
     }
+    return max;
+}
 
-    network->layers = (networkLayer **)malloc(sizeof(networkLayer *) * numLayers);
+float *createNetwork(int numLayers, int *layerSizes)
+{
+
+    int maxLayerSize = max(numLayers, layerSizes);
+
+    float *weights = (float *)malloc(sizeof(float) * numLayers * maxLayerSize * (maxLayerSize + 1));
 
     for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
     {
-        networkLayer *layer = (networkLayer *)malloc(sizeof(networkLayer));
-        layer->nodes = (networkNode **)malloc(sizeof(networkNode *) * layerSizes[layerIndex]);
         for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
         {
-            networkNode *node = (networkNode *)malloc(sizeof(networkNode));
             if (layerIndex == 0)
             {
-                node->inWeights = NULL;
+                // don't do anything because layer 0 is inputs and has no incoming weights
             }
             else
             {
                 int numWeights = 1 + layerSizes[layerIndex - 1]; // +1 for bias
-                node->inWeights = (float *)malloc(sizeof(float) * numWeights);
                 for (int weightIndex = 0; weightIndex < numWeights; weightIndex++)
                 {
-                    node->inWeights[weightIndex] = 0.5f;
+                    int index = getIndex(
+                        layerIndex, nodeIndex, weightIndex,
+                        maxLayerSize
+                    );
+                    weights[index] = 0.5f;
                 }
             }
-            layer->nodes[nodeIndex] = node;
         }
-        network->layers[layerIndex] = layer;
     }
-    return network;
+    return weights;
 }
 
-void printNetwork(neuralNetwork *net)
+void printNetwork(float *weights, int numLayers, int *layerSizes)
 {
-    for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex++)
+    int maxLayerSize = max(numLayers, layerSizes);
+    for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
     {
         printf("\n---<Layer %d>\n", layerIndex);
-        printf("Layer size: %d\n", net->layerSizes[layerIndex]);
-        for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex++)
+        printf("Layer size: %d\n", layerSizes[layerIndex]);
+        for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
         {
             printf("[%d] ", nodeIndex);
             if (layerIndex > 0)
             {
                 // print weights pointing to this node
-                int numWeights = net->layerSizes[layerIndex - 1] + 1;
+                int numWeights = layerSizes[layerIndex - 1] + 1;
                 for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
                 {
-                    printf("%.6f, ", net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex]);
+                    int index = getIndex(
+                        layerIndex, nodeIndex, weightIndex,
+                        maxLayerSize
+                    );
+                    printf("%.6f, ", weights[index]);
                     if (weightIndex == numWeights - 1)
                     {
                         printf("(bias)");
@@ -76,39 +82,54 @@ void printNetwork(neuralNetwork *net)
     }
 }
 
-void initNetworkWeights(neuralNetwork *net)
+void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
 {
+    int maxLayerSize = max(numLayers, layerSizes);
     srand(time(NULL));
-    for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+    for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
     {
-        for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+        for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
         {
-            int numWeights = 1 + net->layerSizes[layerIndex - 1];
+            int numWeights = 1 + layerSizes[layerIndex - 1];
             for (int weightIndex = 0; weightIndex < numWeights; weightIndex ++)
             {
-                net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
+                int index = getIndex(
+                    layerIndex, nodeIndex, weightIndex,
+                    maxLayerSize
+                );
+                weights[index] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
             }
         }
     }
 }
 
-void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues, float learnRate)
+int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
 {
+    return layerIndex * (maxLayerSize + 1) * maxLayerSize +
+        nodeIndex * (maxLayerSize + 1) +
+        weightIndex;
+}
+
+void trainNetwork(float *weights, int numLayers, int *layerSizes,
+    float **trainingData, int numTrainingData,
+    int numIterations, float **trueValues, float learnRate)
+{
+    int maxLayerSize = max(numLayers, layerSizes);
     // node delta
-    float errors[net->numLayers][net->maxLayerSize];
-    for (int i = 0; i < net->numLayers; i++)
+    float errors[numLayers][maxLayerSize];
+    for (int i = 0; i < numLayers; i++)
     {
-        for (int j = 0; j < net->maxLayerSize; j++)
+        for (int j = 0; j < maxLayerSize; j++)
         {
             errors[i][j] = 0;
         }
     }
 
     // activation values
-    float values[net->numLayers][net->maxLayerSize];
-    for (int i = 0; i < net->numLayers; i++)
+    float values[numLayers][maxLayerSize];
+    for (int i = 0; i < numLayers; i++)
     {
-        for (int j = 0; j < net->maxLayerSize; j++)
+        for (int j = 0; j < maxLayerSize; j++)
         {
             values[i][j] = 0;
         }
@@ -119,7 +140,7 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
             // load training sample
-            for (int nodeIndex = 0; nodeIndex < net->layerSizes[0]; nodeIndex ++)
+            for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
             {
                 values[0][nodeIndex] = trainingData[dataIndex][nodeIndex];
             }
@@ -129,22 +150,22 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                 for (int i = 0; i < numTrainingData; i++)
                 {
                     printf("[%d] ", i);
-                    for (int j = 0; j < net->layerSizes[0]; j++)
+                    for (int j = 0; j < layerSizes[0]; j++)
                     {
                         printf("%.4f ", trainingData[i][j]);
                     }
                     printf("(");
-                    for (int j = 0; j < net->layerSizes[net->numLayers - 1]; j++)
+                    for (int j = 0; j < layerSizes[numLayers - 1]; j++)
                     {
                         printf("%.4f ", trueValues[i][j]);
                     }
                     printf(")\n");
                 }
                 printf("Values\n");
-                for (int i = 0; i < net->numLayers; i++)
+                for (int i = 0; i < numLayers; i++)
                 {
                     printf("[%d] ", i);
-                    for (int j = 0; j < net->maxLayerSize; j++)
+                    for (int j = 0; j < maxLayerSize; j++)
                     {
                         printf("%.4f ", values[i][j]);
                     }
@@ -153,28 +174,29 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
             }
             // forward compute
             // start with first hidden layer
-            for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+            for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
             {
-                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
                 {
                     float sum = 0;
-                    for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+                    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                     {
                         float prevLayerValue = values[layerIndex - 1][weightIndex];
-                        float weight = net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex];
-                        sum += prevLayerValue * weight;
+                        int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        sum += prevLayerValue * weights[index];
                     }
                     // add bias
-                    sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]];
+                    int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                    sum += weights[biasIndex];
                     values[layerIndex][nodeIndex] = activationFunction(sum);
                 }
             }
             // find error of layers
-            for (int layerIndex = net->numLayers - 1; layerIndex > 0; layerIndex --)
+            for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
             {
-                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
                 {
-                    if (layerIndex == net->numLayers - 1)
+                    if (layerIndex == numLayers - 1)
                     {
                         // special case for output layer
                         float value = values[layerIndex][nodeIndex];
@@ -187,9 +209,10 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
                     else
                     {
                         float sum = 0;
-                        for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < net->layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
+                        for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
                         {
-                            sum += net->layers[layerIndex + 1]->nodes[nextLayerNodeIndex]->inWeights[nodeIndex] *
+                            int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
+                            sum += weights[index] *
                                 errors[layerIndex + 1][nextLayerNodeIndex];
                         }
                         float value = values[layerIndex][nodeIndex];
@@ -199,19 +222,21 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
             }
 
             // update weights
-            for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+            for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
             {
-                for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
                 {
-                    for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+                    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                     {
-                        net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex] -=
+                        int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        weights[index] -=
                             learnRate *
                             errors[layerIndex][nodeIndex] *
                             values[layerIndex - 1][weightIndex];
                     }
                     // update bias
-                    net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]] -=
+                    int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                    weights[index] -=
                         learnRate *
                         errors[layerIndex][nodeIndex];
                 }
@@ -226,73 +251,75 @@ void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData,
             {
                 printf("\nIteration %d\n", iterationIndex);
                 printf("(Training sample)\n");
-                for (int dataNodeIndex = 0; dataNodeIndex < net->layerSizes[0]; dataNodeIndex ++)
+                for (int dataNodeIndex = 0; dataNodeIndex < layerSizes[0]; dataNodeIndex ++)
                 {
                     printf("%.6f ", trainingData[dataIndex][dataNodeIndex]);
                 }
                 printf("\n");
                 printf("(Value data below)\n");
-                for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
+                for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
                 {
                     printf("[%d] ", layerIndex);
-                    for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                    for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
                     {
                         printf("%.6f ", values[layerIndex][nodeIndex]);
                     }
                     printf("\n");
                 }
                 printf("(Error data below)\n");
-                for (int layerIndex = 0; layerIndex < net->numLayers; layerIndex ++)
+                for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
                 {
                     printf("[%d] ", layerIndex);
-                    for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+                    for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
                     {
                         printf("%.6f ", errors[layerIndex][nodeIndex]);
                     }
                     printf("\n");
                 }
                 printf("Printing network for iteration %d\n", iterationIndex);
-                printNetwork(net);
+                printNetwork(weights, numLayers, layerSizes);
             }
         }
     }
 }
 
-float *classify(neuralNetwork *net, float *sample)
+float *classify(float *weights, int numLayers, int *layerSizes, float *sample)
 {
-    float values[net->numLayers][net->maxLayerSize];
-    for (int i = 0; i < net->numLayers; i++)
+    int maxLayerSize = max(numLayers, layerSizes);
+    float values[numLayers][maxLayerSize];
+    for (int i = 0; i < numLayers; i++)
     {
-        for (int j = 0; j < net->maxLayerSize; j++)
+        for (int j = 0; j < maxLayerSize; j++)
         {
             values[i][j] = 0;
         }
     }
     // load input layer from provided sample
-    for (int nodeIndex = 0; nodeIndex < net->layerSizes[0]; nodeIndex ++)
+    for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
     {
         values[0][nodeIndex] = sample[nodeIndex];
     }
-    for (int layerIndex = 1; layerIndex < net->numLayers; layerIndex ++)
+    for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
     {
-        for (int nodeIndex = 0; nodeIndex < net->layerSizes[layerIndex]; nodeIndex ++)
+        for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
         {
             float sum = 0;
-            for (int weightIndex = 0; weightIndex < net->layerSizes[layerIndex - 1]; weightIndex ++)
+            for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
             {
                 float prevLayerValue = values[layerIndex - 1][weightIndex];
-                float weight = net->layers[layerIndex]->nodes[nodeIndex]->inWeights[weightIndex];
-                sum += prevLayerValue * weight;
+                int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                sum += prevLayerValue * weights[index];
             }
             // add bias
-            sum += net->layers[layerIndex]->nodes[nodeIndex]->inWeights[net->layerSizes[layerIndex - 1]];
+            int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+            sum += weights[index];
             values[layerIndex][nodeIndex] = activationFunction(sum);
         }
     }
-    float *out = (float *)malloc(sizeof(int) * net->layerSizes[net->numLayers - 1]);
-    for (int nodeIndex = 0; nodeIndex < net->layerSizes[net->numLayers - 1]; nodeIndex ++)
+    float *out = (float *)malloc(sizeof(int) * layerSizes[numLayers - 1]);
+    for (int nodeIndex = 0; nodeIndex < layerSizes[numLayers - 1]; nodeIndex ++)
     {
-        out[nodeIndex] = values[net->numLayers - 1][nodeIndex];
+        out[nodeIndex] = values[numLayers - 1][nodeIndex];
     }
     return out;
 }

@@ -1,31 +1,17 @@
-typedef struct neuralNetwork
-{
-    struct networkLayer **layers;
-    int numLayers;
-    int *layerSizes;
-    int maxLayerSize;
-} neuralNetwork;
+float *createNetwork(int numLayers, int *layerSizes);
 
-typedef struct networkLayer
-{
-    struct networkNode **nodes;
-} networkLayer;
+void printNetwork(float *weights, int numLayers, int *layerSizes);
 
-typedef struct networkNode
-{
-    float *inWeights;
-} networkNode;
+int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize);
 
-neuralNetwork *createNetwork(int numLayers, int *layerSizes);
+void initNetworkWeights(float *weights, int numLayers, int *layerSizes);
 
-void printNetwork(neuralNetwork *);
-
-void initNetworkWeights(neuralNetwork *);
-
-void trainNetwork(neuralNetwork *net, float **trainingData, int numTrainingData, int numIterations, float **trueValues, float learnRate);
-
-int maxLayerSize(neuralNetwork *net);
+void trainNetwork(float *weights, int numLayers, int *layerSizes,
+    float **trainingData, int numTrainingData,
+    int numIterations, float **trueValues, float learnRate);
 
 float activationFunction(float x);
 
-float *classify(neuralNetwork *net, float *sample);
+float *classify(float *weights, int numLayers, int *layerSizes, float *sample);
+
+int max(int numValues, int *values);

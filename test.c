@@ -6,11 +6,12 @@
 
 int main(void)
 {
+    int numLayers = 3;
     int layerSizes[3] = {2, 3, 2};
-    neuralNetwork *net = createNetwork(3, layerSizes);
-    printNetwork(net);
-    initNetworkWeights(net);
-    printNetwork(net);
+    float *weights = createNetwork(numLayers, layerSizes);
+    printNetwork(weights, numLayers, layerSizes);
+    initNetworkWeights(weights, numLayers, layerSizes);
+    printNetwork(weights, numLayers, layerSizes);
 
     float tmpTrainData[4][2] = {
         {0.0f, 0.0f},
@@ -41,16 +42,16 @@ int main(void)
         }
     }
 
-    trainNetwork(net, trainData, 4, 1000001, trueValues, .05);
+    trainNetwork(weights, numLayers, layerSizes, trainData, 4, 100001, trueValues, .05);
 
-    printNetwork(net);
+    printNetwork(weights, numLayers, layerSizes);
 
     for (int i = 0; i < 4; i++)
     {
         float *sample = (float *)malloc(2 * sizeof(float));
         sample[0] = trainData[i][0];
         sample[1] = trainData[i][1];
-        float *result = classify(net, sample);
+        float *result = classify(weights, numLayers, layerSizes, sample);
 
         printf("classification input:\n");
         for (int i = 0; i < 2; i++)
@@ -65,15 +66,16 @@ int main(void)
         }
         printf("\n");
         assert(
-            result[0] - trueValues[i][0] < .01 &&
-            result[1] - trueValues[i][1] < .01
+            fabsf(result[0] - trueValues[i][0]) < .1 &&
+            fabsf(result[1] - trueValues[i][1]) < .1
         );
     }
 
 
+    int numLayers2 = 3;
     int layerSizes2[3] = {2, 3, 2};
-    neuralNetwork *net2 = createNetwork(3, layerSizes2);
-    initNetworkWeights(net2);
+    float *net2 = createNetwork(3, layerSizes2);
+    initNetworkWeights(net2, numLayers2, layerSizes2);
 
     int indata[8][8] = {
         { 1,1,1,1, 1,1,1,1},
@@ -108,14 +110,14 @@ int main(void)
             trueOut[i * 8 + j] = trueOutValues;
         }
     }
-    trainNetwork(net2, input, 64, 100001, trueOut, .05);
+    trainNetwork(net2, numLayers2, layerSizes2, input, 64, 100001, trueOut, .05);
 
     for (int i = 0; i < 64; i++)
     {
         float *sample = (float *)malloc(2 * sizeof(float));
         sample[0] = input[i][0];
         sample[1] = input[i][1];
-        float *result = classify(net2, sample);
+        float *result = classify(net2, numLayers2, layerSizes2, sample);
 
         printf("input: ");
         for (int i = 0; i < 2; i++)
