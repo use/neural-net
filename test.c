@@ -4,7 +4,16 @@
 #include <assert.h>
 #include <math.h>
 
+void testAndFunction();
+void testTonyFunction();
+
 int main(void)
+{
+    testAndFunction();
+    testTonyFunction();
+}
+
+void testAndFunction()
 {
     int numLayers = 3;
     int layerSizes[3] = {2, 3, 2};
@@ -70,12 +79,14 @@ int main(void)
             fabsf(result[1] - trueValues[i][1]) < .1
         );
     }
+}
 
-
-    int numLayers2 = 3;
-    int layerSizes2[3] = {2, 3, 2};
-    float *net2 = createNetwork(3, layerSizes2);
-    initNetworkWeights(net2, numLayers2, layerSizes2);
+void testTonyFunction()
+{
+    int numLayers = 3;
+    int layerSizes[3] = {2, 3, 2};
+    float *net = createNetwork(3, layerSizes);
+    initNetworkWeights(net, numLayers, layerSizes);
 
     int indata[8][8] = {
         { 1,1,1,1, 1,1,1,1},
@@ -110,14 +121,14 @@ int main(void)
             trueOut[i * 8 + j] = trueOutValues;
         }
     }
-    trainNetwork(net2, numLayers2, layerSizes2, input, 64, 100001, trueOut, .05);
+    trainNetwork(net, numLayers, layerSizes, input, 64, 100001, trueOut, .05);
 
     for (int i = 0; i < 64; i++)
     {
         float *sample = (float *)malloc(2 * sizeof(float));
         sample[0] = input[i][0];
         sample[1] = input[i][1];
-        float *result = classify(net2, numLayers2, layerSizes2, sample);
+        float *result = classify(net, numLayers, layerSizes, sample);
 
         printf("input: ");
         for (int i = 0; i < 2; i++)
