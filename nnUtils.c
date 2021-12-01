@@ -111,8 +111,8 @@ int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
 }
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
-    float **trainingData, int numTrainingData,
-    int numIterations, float **trueValues, float learnRate)
+    float *trainingData, int numTrainingData,
+    int numIterations, float *trueValues, float learnRate)
 {
     int maxLayerSize = max(numLayers, layerSizes);
     // node delta
@@ -139,10 +139,12 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     {
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
+            int dataStartIndex = dataIndex * layerSizes[0];
+            int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
             // load training sample
             for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
             {
-                values[0][nodeIndex] = trainingData[dataIndex][nodeIndex];
+                values[0][nodeIndex] = trainingData[dataStartIndex + nodeIndex];
             }
             if (iterationIndex == 0 && dataIndex == 1)
             {
@@ -152,12 +154,12 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                     printf("[%d] ", i);
                     for (int j = 0; j < layerSizes[0]; j++)
                     {
-                        printf("%.4f ", trainingData[i][j]);
+                        printf("%.4f ", trainingData[dataStartIndex + j]);
                     }
                     printf("(");
                     for (int j = 0; j < layerSizes[numLayers - 1]; j++)
                     {
-                        printf("%.4f ", trueValues[i][j]);
+                        printf("%.4f ", trueValues[trueValueStartIndex + j]);
                     }
                     printf(")\n");
                 }
@@ -200,7 +202,7 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                     {
                         // special case for output layer
                         float value = values[layerIndex][nodeIndex];
-                        float actual = trueValues[dataIndex][nodeIndex];
+                        float actual = trueValues[trueValueStartIndex + nodeIndex];
                         errors[layerIndex][nodeIndex] =
                             value *
                             (1 - value) *
@@ -253,7 +255,7 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                 printf("(Training sample)\n");
                 for (int dataNodeIndex = 0; dataNodeIndex < layerSizes[0]; dataNodeIndex ++)
                 {
-                    printf("%.6f ", trainingData[dataIndex][dataNodeIndex]);
+                    printf("%.6f ", trainingData[dataStartIndex + dataNodeIndex]);
                 }
                 printf("\n");
                 printf("(Value data below)\n");
