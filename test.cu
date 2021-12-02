@@ -13,12 +13,22 @@ int main(void)
     testAndFunctionGpu();
     // testTonyFunction();
 }
-
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 void testAndFunctionGpu()
 {
     int numLayers = 3;
     int layerSizes[3] = {2, 3, 2};
     float *weights = createNetwork(numLayers, layerSizes);
+    int maxLayerSize = listMax(numLayers, layerSizes);
+    int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     printNetwork(weights, numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printNetwork(weights, numLayers, layerSizes);
@@ -53,40 +63,50 @@ void testAndFunctionGpu()
         }
     }
 
-    int maxLayerSize = listMax(numLayers, layerSizes);
     float *weightDeltas = (float*) malloc(sizeof(weights));
 
     int threadsPerBlock = 2;
     int numBlocks = (int)ceil(inDataCount / threadsPerBlock); // need to check this math
 
     float *d_weights = 0;
+    int *d_layerSizes = 0;
     float *d_trainData = 0;
     float *d_trueValues = 0;
     float *d_weightDeltas = 0;
     float *d_nodeErrors = 0;
     float *d_nodeValues = 0;
 
-    cudaMalloc(&d_weights, sizeof(weights));
-    cudaMalloc(&d_trainData, sizeof(trainData));
-    cudaMalloc(&d_trueValues, sizeof(trueValues));
-    cudaMalloc(&d_weightDeltas, sizeof(weights));
+    cudaMalloc(&d_weights, sizeof(float) * numWeights);
+    cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
+    cudaMalloc(&d_trainData, sizeof(float) * inDataCount * inDataWidth);
+    cudaMalloc(&d_trueValues, sizeof(float) * inDataCount * layerSizes[numLayers - 1]);
+    cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
     cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
 
-    cudaMemcpy(d_trainData, trainData, sizeof(trainData), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_trueValues, trueValues, sizeof(trueValues), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_trainData, trainData, sizeof(float) * inDataCount * inDataWidth, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_trueValues, trueValues, sizeof(float) * inDataCount * layerSizes[numLayers - 1], cudaMemcpyHostToDevice);
 
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 10000; i++)
     {
-        cudaMemcpy(d_weights, weights, sizeof(weights), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
-        printf("numBlocks: %d\n", numBlocks);
-        printf("threadsPerBlock: %d\n", threadsPerBlock);
-        trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(weights, numLayers, layerSizes, trainData, 4, 1, trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+        trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(d_weights, numLayers, d_layerSizes, d_trainData, 4, 1, d_trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+        gpuErrchk( cudaPeekAtLastError() );
+        gpuErrchk( cudaDeviceSynchronize() );
+        cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
 
-        cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(weightDeltas), cudaMemcpyDeviceToHost);
-
-        for (int i = 0; i < sizeof(weights) / sizeof(float); i++)
+        if (i < 10 || i % 1000 == 0)
+        {
+            printf("weightDeltas (iteration %d)\n", i);
+            for (int j = 0; j < numWeights; j++)
+            {
+                printf("%.3f ", weightDeltas[j]);
+            }
+            printf("\n");
+        }
+        for (int i = 0; i < numWeights; i++)
         {
             weights[i] += weightDeltas[i];
         }
@@ -94,21 +114,21 @@ void testAndFunctionGpu()
 
     printNetwork(weights, numLayers, layerSizes);
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < inDataCount; i++)
     {
-        float *sample = (float *)malloc(2 * sizeof(float));
+        float *sample = (float *)malloc(inDataWidth * sizeof(float));
         sample[0] = trainData[i * inDataWidth + 0];
         sample[1] = trainData[i * inDataWidth + 1];
         float *result = classify(weights, numLayers, layerSizes, sample);
 
         printf("classification input:\n");
-        for (int j = 0; j < 2; j++)
+        for (int j = 0; j < inDataWidth; j++)
         {
             printf("(%d) %f  ", j, sample[j]);
         }
         printf("\n");
         printf("classification result:\n");
-        for (int j = 0; j < 2; j++)
+        for (int j = 0; j < outDataWidth; j++)
         {
             printf("(%d) %f  ", j, result[j]);
         }
@@ -118,6 +138,7 @@ void testAndFunctionGpu()
             fabsf(result[1] - trueValues[i * outDataWidth + 1]) < .1
         );
     }
+    printf("got here\n");
 }
 
 void testAndFunction()

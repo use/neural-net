@@ -4,7 +4,20 @@
 #include <time.h>
 #include <math.h>
 
-__host__ __device__ int listMax(int numValues, int *values)
+int listMax(int numValues, int *values)
+{
+    int max = 0;
+    for (int i = 0; i < numValues; i++)
+    {
+        if (values[i] > max)
+        {
+            max = values[i];
+        }
+    }
+    return max;
+}
+
+__device__ int d_listMax(int numValues, int *values)
 {
     int max = 0;
     for (int i = 0; i < numValues; i++)
@@ -23,7 +36,6 @@ float *createNetwork(int numLayers, int *layerSizes)
     int maxLayerSize = listMax(numLayers, layerSizes);
 
     float *weights = (float *)malloc(sizeof(float) * numLayers * maxLayerSize * (maxLayerSize + 1));
-
     for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
     {
         for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
@@ -49,7 +61,7 @@ float *createNetwork(int numLayers, int *layerSizes)
     return weights;
 }
 
-__host__ __device__ void printNetwork(float *weights, int numLayers, int *layerSizes)
+void printNetwork(float *weights, int numLayers, int *layerSizes)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
     for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
@@ -103,7 +115,14 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
     }
 }
 
-__host__ __device__ int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
+int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
+{
+    return layerIndex * (maxLayerSize + 1) * maxLayerSize +
+        nodeIndex * (maxLayerSize + 1) +
+        weightIndex;
+}
+
+__device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
 {
     return layerIndex * (maxLayerSize + 1) * maxLayerSize +
         nodeIndex * (maxLayerSize + 1) +
@@ -115,16 +134,27 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
     float *nodeErrors, float *nodeValues)
 {
-    int maxLayerSize = listMax(numLayers, layerSizes);
-    printf("blockDim.x: %d\n", blockDim.x);
-    printf("blockIdx.x: %d\n", blockIdx.x);
-    printf("threadIdx.x: %d\n", threadIdx.x);
-
+    // int maxLayerSize = 0;
+    // for (int i = 0; i < sizeof(layerSizes) / sizeof(int); i++)
+    // {
+    //     if (layerSizes[i] > maxLayerSize)
+    //     {
+    //         maxLayerSize = layerSizes[i];
+    //     }
+    // }
+    int maxLayerSize = d_listMax(numLayers, layerSizes);
+    int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     // make a local copy of weights so they can be adjusted
-    float *myWeights = (float *)malloc(sizeof(weights));
-    for (int i = 0; i < sizeof(myWeights) / sizeof(float); i ++)
+    float *myWeights = (float *)malloc(sizeof(float) * numWeights);
+    for (int i = 0; i < numWeights; i ++)
     {
         myWeights[i] = weights[i];
+    }
+
+    // reset weight deltas
+    for (int i = 0; i < numWeights; i++)
+    {
+        weightDeltas[i] = 0;
     }
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
@@ -141,7 +171,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         {
             nodeValues[nodeDataOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
         }
-        if (iterationIndex == 0 && dataIndex == 0)
+        if (0 && iterationIndex == 0 && dataIndex == 0)
         {
             printf("Training Data\n");
             for (int i = 0; i < numTrainingData; i++)
@@ -179,13 +209,13 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
                     float prevLayerValue = nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
-                    int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                    int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
                     sum += prevLayerValue * myWeights[index];
                 }
                 // add bias
-                int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                int biasIndex = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
                 sum += myWeights[biasIndex];
-                nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = activationFunction(sum);
+                nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = d_activationFunction(sum);
             }
         }
         // find error of layers
@@ -208,7 +238,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                     float sum = 0;
                     for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
                     {
-                        int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
+                        int index = d_getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
                         sum += myWeights[index] *
                             nodeErrors[nodeDataOffset + (layerIndex + 1) * maxLayerSize + nextLayerNodeIndex];
                     }
@@ -225,25 +255,27 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
             {
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
-                    int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                    int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
                     myWeights[index] -=
                         learnRate *
                         nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] *
                         nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
                 }
                 // update bias
-                int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                int index = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
                 myWeights[index] -=
                     learnRate *
                     nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
             }
         }
         if (
-            iterationIndex < 11 ||
-            iterationIndex == 100 ||
-            iterationIndex == 1000 ||
-            iterationIndex == 10000 ||
-            iterationIndex == numIterations - 1
+            0 && (
+                iterationIndex < 11 ||
+                iterationIndex == 100 ||
+                iterationIndex == 1000 ||
+                iterationIndex == 10000 ||
+                iterationIndex == numIterations - 1
+            )
         )
         {
             printf("\nIteration %d\n", iterationIndex);
@@ -273,15 +305,16 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 }
                 printf("\n");
             }
-            printf("Printing network for iteration %d\n", iterationIndex);
-            printNetwork(myWeights, numLayers, layerSizes);
+            // printf("Printing network for iteration %d\n", iterationIndex);
+            // printNetwork(myWeights, numLayers, layerSizes);
         }
     }
-    for (int i = 0; i < sizeof(weights) / sizeof(float); i++)
+    for (int i = 0; i < numWeights; i++)
     {
         // int weightIndex = (blockIdx.x * blockDim.x + threadIdx.x) % numWeights
         atomicAdd(&weightDeltas[i], myWeights[i] - weights[i]);
     }
+    free(myWeights);
 }
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
@@ -500,7 +533,12 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *sample)
     return out;
 }
 
-__host__ __device__ float activationFunction(float x)
+float activationFunction(float x)
+{
+    return (float)(1.0f / (1 + exp(x * (-1))));
+}
+
+__device__ float d_activationFunction(float x)
 {
     return (float)(1.0f / (1 + exp(x * (-1))));
 }
