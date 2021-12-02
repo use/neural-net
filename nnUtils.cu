@@ -142,6 +142,13 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     //         maxLayerSize = layerSizes[i];
     //     }
     // }
+
+    int dataIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    if (dataIndex >= numTrainingData)
+    {
+        return;
+    }
+
     int maxLayerSize = d_listMax(numLayers, layerSizes);
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     // make a local copy of weights so they can be adjusted
@@ -162,8 +169,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     __syncthreads();
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
-
-    int dataIndex = blockIdx.x * blockDim.x + threadIdx.x;
 
     int dataStartIndex = dataIndex * layerSizes[0];
     int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
