@@ -5,12 +5,13 @@
 #include <math.h>
 
 void testAndFunction();
+void testAndFunctionGpu();
 void testTonyFunction();
 
 int main(void)
 {
-    testAndFunction();
-    testTonyFunction();
+    testAndFunctionGpu();
+    // testTonyFunction();
 }
 
 void testAndFunctionGpu()
@@ -52,31 +53,37 @@ void testAndFunctionGpu()
         }
     }
 
-    float *newWeights = malloc(sizeof(weights));
+    int maxLayerSize = listMax(numLayers, layerSizes);
+    float *weightDeltas = (float*) malloc(sizeof(weights));
+
+    int threadsPerBlock = 2;
+    int numBlocks = (int)ceil(inDataCount / threadsPerBlock); // need to check this math
 
     float *d_weights = 0;
     float *d_trainData = 0;
     float *d_trueValues = 0;
-    float *d_newWeights = 0;
+    float *d_weightDeltas = 0;
+    float *d_nodeErrors = 0;
+    float *d_nodeValues = 0;
 
     cudaMalloc(&d_weights, sizeof(weights));
     cudaMalloc(&d_trainData, sizeof(trainData));
     cudaMalloc(&d_trueValues, sizeof(trueValues));
-    cudaMalloc(&d_newWeights, sizeof(weights));
+    cudaMalloc(&d_weightDeltas, sizeof(weights));
+    cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
 
     cudaMemcpy(d_weights, weights, sizeof(weights), cudaMemcpyHostToDevice);
     cudaMemcpy(d_trainData, trainData, sizeof(trainData), cudaMemcpyHostToDevice);
     cudaMemcpy(d_trueValues, trueValues, sizeof(trueValues), cudaMemcpyHostToDevice);
 
-    int threadsPerBlock = 2;
-    int numBlocks = (int)ceil(inDataCount / threadsPerBlock); // need to check this math
-    trainNetworkGpu<<<numBlocks, blockSize>>>(weights, numLayers, layerSizes, trainData, 4, 100001, trueValues, .05, d_newWeights);
+    trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(weights, numLayers, layerSizes, trainData, 4, 1, trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
 
-    cudaMemcpy(newWeights, d_newWeights, sizeof(newWeights), cudaMemcpyDeviceToHost);
+    cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(weightDeltas), cudaMemcpyDeviceToHost);
 
     for (int i = 0; i < sizeof(weights) / sizeof(float); i++)
     {
-        weights[i] = newWeights[i];
+        weights[i] = weightDeltas[i];
     }
 
     printNetwork(weights, numLayers, layerSizes);
@@ -89,15 +96,15 @@ void testAndFunctionGpu()
         float *result = classify(weights, numLayers, layerSizes, sample);
 
         printf("classification input:\n");
-        for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
         {
-            printf("(%d) %f  ", i, sample[i]);
+            printf("(%d) %f  ", j, sample[j]);
         }
         printf("\n");
         printf("classification result:\n");
-        for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
         {
-            printf("(%d) %f  ", i, result[i]);
+            printf("(%d) %f  ", j, result[j]);
         }
         printf("\n");
         assert(
@@ -158,15 +165,15 @@ void testAndFunction()
         float *result = classify(weights, numLayers, layerSizes, sample);
 
         printf("classification input:\n");
-        for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
         {
-            printf("(%d) %f  ", i, sample[i]);
+            printf("(%d) %f  ", j, sample[i]);
         }
         printf("\n");
         printf("classification result:\n");
-        for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
         {
-            printf("(%d) %f  ", i, result[i]);
+            printf("(%d) %f  ", j, result[i]);
         }
         printf("\n");
         assert(
