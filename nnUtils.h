@@ -10,6 +10,10 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate);
 
+void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
+    float *trainingData, int numTrainingData,
+    int numIterations, float *trueValues, float learnRate, int *newWeights);
+
 float activationFunction(float x);
 
 float *classify(float *weights, int numLayers, int *layerSizes, float *sample);
