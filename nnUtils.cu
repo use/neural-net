@@ -183,8 +183,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 printf("\n");
             }
         }
-        forward compute
-        start with first hidden layer
+        // forward compute
+        // start with first hidden layer
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
             for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
