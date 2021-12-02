@@ -73,17 +73,23 @@ void testAndFunctionGpu()
     cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
 
-    cudaMemcpy(d_weights, weights, sizeof(weights), cudaMemcpyHostToDevice);
     cudaMemcpy(d_trainData, trainData, sizeof(trainData), cudaMemcpyHostToDevice);
     cudaMemcpy(d_trueValues, trueValues, sizeof(trueValues), cudaMemcpyHostToDevice);
 
-    trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(weights, numLayers, layerSizes, trainData, 4, 1, trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
-
-    cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(weightDeltas), cudaMemcpyDeviceToHost);
-
-    for (int i = 0; i < sizeof(weights) / sizeof(float); i++)
+    for (int i = 0; i < 100; i++)
     {
-        weights[i] = weightDeltas[i];
+        cudaMemcpy(d_weights, weights, sizeof(weights), cudaMemcpyHostToDevice);
+
+        printf("numBlocks: %d\n", numBlocks);
+        printf("threadsPerBlock: %d\n", threadsPerBlock);
+        trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(weights, numLayers, layerSizes, trainData, 4, 1, trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+
+        cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(weightDeltas), cudaMemcpyDeviceToHost);
+
+        for (int i = 0; i < sizeof(weights) / sizeof(float); i++)
+        {
+            weights[i] += weightDeltas[i];
+        }
     }
 
     printNetwork(weights, numLayers, layerSizes);

@@ -116,6 +116,9 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *nodeErrors, float *nodeValues)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
+    printf("blockDim.x: %d\n", blockDim.x);
+    printf("blockIdx.x: %d\n", blockIdx.x);
+    printf("threadIdx.x: %d\n", threadIdx.x);
 
     // make a local copy of weights so they can be adjusted
     float *myWeights = (float *)malloc(sizeof(weights));
