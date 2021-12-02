@@ -50,13 +50,13 @@ void testAndFunctionGpu()
     int inDataWidth = 2;
     int inDataCount = 4;
     int outDataWidth = 2;
-    float *trainData = (float *)malloc(sizeof(int *) * inDataCount);
+    float *trainData = (float *)malloc(sizeof(float) * inDataCount * inDataWidth);
     for (int i = 0; i<inDataCount; i++) {
         for (int j = 0; j<inDataWidth; j++) {
             trainData[i * inDataWidth + j] = tmpTrainData[i][j];
         }
     }
-    float *trueValues = (float *)malloc(sizeof(int *) * inDataCount * outDataWidth);
+    float *trueValues = (float *)malloc(sizeof(float) * inDataCount * outDataWidth);
     for (int i = 0; i<4; i++) {
         for (int j = 0; j<2; j++) {
             trueValues[i * inDataWidth + j] = tmpTrueValues[i][j];
