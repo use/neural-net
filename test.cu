@@ -59,7 +59,7 @@ void testAndFunctionGpu()
     float *trueValues = (float *)malloc(sizeof(float) * inDataCount * outDataWidth);
     for (int i = 0; i<4; i++) {
         for (int j = 0; j<2; j++) {
-            trueValues[i * inDataWidth + j] = tmpTrueValues[i][j];
+            trueValues[i * outDataWidth + j] = tmpTrueValues[i][j];
         }
     }
 
