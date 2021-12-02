@@ -47,9 +47,9 @@ void testAndFunctionGpu()
         {0.0, 1.0},
     };
 
-    int inDataWidth = 2;
+    int inDataWidth = layerSizes[0];
     int inDataCount = 4;
-    int outDataWidth = 2;
+    int outDataWidth = layerSizes[numLayers - 1];
     float *trainData = (float *)malloc(sizeof(float) * inDataCount * inDataWidth);
     for (int i = 0; i<inDataCount; i++) {
         for (int j = 0; j<inDataWidth; j++) {
@@ -57,8 +57,8 @@ void testAndFunctionGpu()
         }
     }
     float *trueValues = (float *)malloc(sizeof(float) * inDataCount * outDataWidth);
-    for (int i = 0; i<4; i++) {
-        for (int j = 0; j<2; j++) {
+    for (int i = 0; i<inDataCount; i++) {
+        for (int j = 0; j<outDataWidth; j++) {
             trueValues[i * outDataWidth + j] = tmpTrueValues[i][j];
         }
     }
