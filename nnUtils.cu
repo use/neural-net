@@ -152,10 +152,14 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     }
 
     // reset weight deltas
-    for (int i = 0; i < numWeights; i++)
+    if (blockIdx.x == 0 && threadIdx.x == 0)
     {
-        weightDeltas[i] = 0;
+        for (int i = 0; i < numWeights; i++)
+        {
+            weightDeltas[i] = 0;
+        }
     }
+    __syncthreads();
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
 
