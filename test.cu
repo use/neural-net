@@ -63,7 +63,7 @@ void testAndFunctionGpu()
         }
     }
 
-    float *weightDeltas = (float*) malloc(sizeof(weights));
+    float *weightDeltas = (float*) malloc(sizeof(float) * numWeights);
 
     int threadsPerBlock = 2;
     int numBlocks = (int)ceil(inDataCount / threadsPerBlock); // need to check this math
