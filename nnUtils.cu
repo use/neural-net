@@ -624,7 +624,7 @@ void batchTrainNetworkGpu(
             trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
-                d_trueValues, .05, d_weightDeltas,
+                d_trueValues, learnRate, d_weightDeltas,
                 d_nodeErrors, d_nodeValues
             );
             gpuErrchk( cudaPeekAtLastError() );
