@@ -565,14 +565,15 @@ __device__ float d_activationFunction(float x)
 void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
-    float *trueValues, float learnRate, int batchSize)
+    float *trueValues, float learnRate, int batchSize,
+    int numEpochs)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     float *weightDeltas = (float *) malloc(sizeof(float) * numWeights);
     int inDataWidth = layerSizes[0];
 
-    int threadsPerBlock = 2;
+    int threadsPerBlock = 8;
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
@@ -581,39 +582,38 @@ void batchTrainNetworkGpu(
     float *d_weightDeltas = 0;
     float *d_nodeErrors = 0;
     float *d_nodeValues = 0;
-    int samplesPerBatch = 3;
-    int numBatches = (int)ceil((float)trainDataCount / (float)samplesPerBatch);
-    int numBlocks = (int)ceil((float)samplesPerBatch / (float)threadsPerBlock); // need to check this math
+    int numBatches = (int)ceil((float)trainDataCount / (float)batchSize);
+    int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
 
-    printf("samplesPerBatch: %d\n", samplesPerBatch);
+    printf("batchSize: %d\n", batchSize);
     printf("numBatches: %d\n", numBatches);
     printf("numBlocks: %d\n", numBlocks);
 
     cudaMalloc(&d_weights, sizeof(float) * numWeights);
     cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
-    cudaMalloc(&d_trainData, sizeof(float) * samplesPerBatch * inDataWidth);
-    cudaMalloc(&d_trueValues, sizeof(float) * samplesPerBatch * layerSizes[numLayers - 1]);
+    cudaMalloc(&d_trainData, sizeof(float) * batchSize * inDataWidth);
+    cudaMalloc(&d_trueValues, sizeof(float) * batchSize * layerSizes[numLayers - 1]);
     cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
     cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
 
-    for (int i = 0; i < 10000; i++)
+    for (int i = 0; i < numEpochs; i++)
     {
 
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
             cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
-            int trainDataStartIndex = batchNumber * samplesPerBatch * inDataWidth;
-            int trueValuesStartIndex = batchNumber * samplesPerBatch * layerSizes[numLayers - 1];
-            int thisBatchNumSamples = samplesPerBatch;
-            if ((batchNumber + 1) * samplesPerBatch > trainDataCount)
+            int trainDataStartIndex = batchNumber * batchSize * inDataWidth;
+            int trueValuesStartIndex = batchNumber * batchSize * layerSizes[numLayers - 1];
+            int thisBatchNumSamples = batchSize;
+            if ((batchNumber + 1) * batchSize > trainDataCount)
             {
                 // in this case our final batch has more capacity than the number of remaining samples
                 // need to copy less data in
-                thisBatchNumSamples = samplesPerBatch - ((batchNumber + 1) * samplesPerBatch - trainDataCount);
+                thisBatchNumSamples = batchSize - ((batchNumber + 1) * batchSize - trainDataCount);
             }
             int trainDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
             int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * layerSizes[numLayers - 1];

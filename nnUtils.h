@@ -21,7 +21,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
-    float *trueValues, float learnRate, int batchSize
+    float *trueValues, float learnRate, int batchSize,
+    int numEpochs
 );
 
 float activationFunction(float x);
