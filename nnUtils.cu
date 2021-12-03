@@ -4,6 +4,16 @@
 #include <time.h>
 #include <math.h>
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 int listMax(int numValues, int *values)
 {
     int max = 0;
@@ -550,4 +560,85 @@ float activationFunction(float x)
 __device__ float d_activationFunction(float x)
 {
     return (float)(1.0f / (1 + exp(x * (-1))));
+}
+
+void batchTrainNetworkGpu(
+    float *weights, int numLayers, int *layerSizes,
+    float *trainData, int trainDataCount, int internalIterations,
+    float *trueValues, float learnRate, int batchSize)
+{
+    int maxLayerSize = listMax(numLayers, layerSizes);
+    int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
+    float *weightDeltas = (float *) malloc(sizeof(float) * numWeights);
+    int inDataWidth = layerSizes[0];
+
+    int threadsPerBlock = 2;
+
+    float *d_weights = 0;
+    int *d_layerSizes = 0;
+    float *d_trainData = 0;
+    float *d_trueValues = 0;
+    float *d_weightDeltas = 0;
+    float *d_nodeErrors = 0;
+    float *d_nodeValues = 0;
+    int samplesPerBatch = 3;
+    int numBatches = (int)ceil((float)trainDataCount / (float)samplesPerBatch);
+    int numBlocks = (int)ceil((float)samplesPerBatch / (float)threadsPerBlock); // need to check this math
+
+    printf("samplesPerBatch: %d\n", samplesPerBatch);
+    printf("numBatches: %d\n", numBatches);
+    printf("numBlocks: %d\n", numBlocks);
+
+    cudaMalloc(&d_weights, sizeof(float) * numWeights);
+    cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
+    cudaMalloc(&d_trainData, sizeof(float) * samplesPerBatch * inDataWidth);
+    cudaMalloc(&d_trueValues, sizeof(float) * samplesPerBatch * layerSizes[numLayers - 1]);
+    cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
+    cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
+
+    cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
+
+    for (int i = 0; i < 10000; i++)
+    {
+
+        for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
+        {
+            cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+
+            int trainDataStartIndex = batchNumber * samplesPerBatch * inDataWidth;
+            int trueValuesStartIndex = batchNumber * samplesPerBatch * layerSizes[numLayers - 1];
+            int thisBatchNumSamples = samplesPerBatch;
+            if ((batchNumber + 1) * samplesPerBatch > trainDataCount)
+            {
+                // in this case our final batch has more capacity than the number of remaining samples
+                // need to copy less data in
+                thisBatchNumSamples = samplesPerBatch - ((batchNumber + 1) * samplesPerBatch - trainDataCount);
+            }
+            int trainDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
+            int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * layerSizes[numLayers - 1];
+            // copy in the samples of this batch
+            cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
+            cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
+
+            trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(d_weights, numLayers, d_layerSizes, d_trainData, thisBatchNumSamples, 1, d_trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+            gpuErrchk( cudaPeekAtLastError() );
+            gpuErrchk( cudaDeviceSynchronize() );
+            cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
+
+            if (i < 10 || i % 1000 == 0)
+            {
+                printf("weightDeltas (iteration %d)\n", i);
+                for (int j = 0; j < numWeights; j++)
+                {
+                    printf("%.3f ", weightDeltas[j]);
+                }
+                printf("\n");
+            }
+            for (int i = 0; i < numWeights; i++)
+            {
+                weights[i] += weightDeltas[i];
+            }
+        }
+    }
 }
