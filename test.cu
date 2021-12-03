@@ -66,7 +66,6 @@ void testAndFunctionGpu()
     float *weightDeltas = (float*) malloc(sizeof(float) * numWeights);
 
     int threadsPerBlock = 2;
-    int numBlocks = (int)ceil(inDataCount / threadsPerBlock); // need to check this math
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
@@ -75,40 +74,64 @@ void testAndFunctionGpu()
     float *d_weightDeltas = 0;
     float *d_nodeErrors = 0;
     float *d_nodeValues = 0;
+    int samplesPerBatch = 3;
+    int numBatches = (int)ceil((float)inDataCount / (float)samplesPerBatch);
+    int numBlocks = (int)ceil((float)samplesPerBatch / (float)threadsPerBlock); // need to check this math
+
+    printf("samplesPerBatch: %d\n", samplesPerBatch);
+    printf("numBatches: %d\n", numBatches);
+    printf("numBlocks: %d\n", numBlocks);
 
     cudaMalloc(&d_weights, sizeof(float) * numWeights);
     cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
-    cudaMalloc(&d_trainData, sizeof(float) * inDataCount * inDataWidth);
-    cudaMalloc(&d_trueValues, sizeof(float) * inDataCount * layerSizes[numLayers - 1]);
+    cudaMalloc(&d_trainData, sizeof(float) * samplesPerBatch * inDataWidth);
+    cudaMalloc(&d_trueValues, sizeof(float) * samplesPerBatch * layerSizes[numLayers - 1]);
     cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
     cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
 
-    cudaMemcpy(d_trainData, trainData, sizeof(float) * inDataCount * inDataWidth, cudaMemcpyHostToDevice);
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_trueValues, trueValues, sizeof(float) * inDataCount * layerSizes[numLayers - 1], cudaMemcpyHostToDevice);
 
     for (int i = 0; i < 10000; i++)
     {
-        cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
-        trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(d_weights, numLayers, d_layerSizes, d_trainData, 4, 1, d_trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
-        gpuErrchk( cudaPeekAtLastError() );
-        gpuErrchk( cudaDeviceSynchronize() );
-        cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
-
-        if (i < 10 || i % 1000 == 0)
+        for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
-            printf("weightDeltas (iteration %d)\n", i);
-            for (int j = 0; j < numWeights; j++)
+            cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+
+            int trainDataStartIndex = batchNumber * samplesPerBatch * inDataWidth;
+            int trueValuesStartIndex = batchNumber * samplesPerBatch * layerSizes[numLayers - 1];
+            int thisBatchNumSamples = samplesPerBatch;
+            if ((batchNumber + 1) * samplesPerBatch > inDataCount)
             {
-                printf("%.3f ", weightDeltas[j]);
+                // in this case our final batch has more capacity than the number of remaining samples
+                // need to copy less data in
+                thisBatchNumSamples = samplesPerBatch - ((batchNumber + 1) * samplesPerBatch - inDataCount);
             }
-            printf("\n");
-        }
-        for (int i = 0; i < numWeights; i++)
-        {
-            weights[i] += weightDeltas[i];
+            int trainDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
+            int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * layerSizes[numLayers - 1];
+            // copy in the samples of this batch
+            cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
+            cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
+
+            trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(d_weights, numLayers, d_layerSizes, d_trainData, thisBatchNumSamples, 1, d_trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+            gpuErrchk( cudaPeekAtLastError() );
+            gpuErrchk( cudaDeviceSynchronize() );
+            cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
+
+            if (i < 10 || i % 1000 == 0)
+            {
+                printf("weightDeltas (iteration %d)\n", i);
+                for (int j = 0; j < numWeights; j++)
+                {
+                    printf("%.3f ", weightDeltas[j]);
+                }
+                printf("\n");
+            }
+            for (int i = 0; i < numWeights; i++)
+            {
+                weights[i] += weightDeltas[i];
+            }
         }
     }
 
