@@ -286,6 +286,8 @@ void testTonyFunctionGpu()
         100000
     );
 
+    printNetwork(net, numLayers, layerSizes);
+
     for (int i = 0; i < 64; i++)
     {
         int dataIndex = i * inDataWidth;

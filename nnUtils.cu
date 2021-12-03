@@ -621,7 +621,12 @@ void batchTrainNetworkGpu(
             cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
             cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
 
-            trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(d_weights, numLayers, d_layerSizes, d_trainData, thisBatchNumSamples, 1, d_trueValues, .05, d_weightDeltas, d_nodeErrors, d_nodeValues);
+            trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
+                d_weights, numLayers, d_layerSizes,
+                d_trainData, thisBatchNumSamples, internalIterations,
+                d_trueValues, .05, d_weightDeltas,
+                d_nodeErrors, d_nodeValues
+            );
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
             cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);

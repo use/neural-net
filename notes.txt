@@ -1,0 +1,7 @@
+steps to backprop
+compute the TOTAL error
+    sum of all errors on all output neurons
+for each weight leading into each output neuron
+    find gradient/derivative of error wrt that weight
+    delta found by by multiplying that gradient/derivative by learning rate
+    update weight adding delta
