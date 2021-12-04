@@ -9,6 +9,7 @@ void testAndFunctionGpu();
 void testTonyFunction();
 void testTonyFunctionGpu();
 void testImageDataParsing();
+void testImageTrainingGpu();
 
 int main(void)
 {
@@ -16,9 +17,34 @@ int main(void)
     // testTonyFunction();
     // testTonyFunctionGpu();
 
-    // testImageDataParsing();
+    testImageDataParsing();
 
-    testImageTraining();
+    testImageTrainingGpu();
+}
+
+void testImageTrainingGpu()
+{
+    int numLayers = 3;
+    int layerSizes[3] = {28 * 28, 100, 10};
+    float *weights = createNetwork(numLayers, layerSizes);
+    initNetworkWeights(weights, numLayers, layerSizes);
+    printf("Initialized weights\n");
+
+    int numSamples = 1;
+    char filePath[] = "data/mnist_train.csv";
+    imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
+    assert(imageSampleTrueValue(samples->trueOutput, 0) == 5);
+    printf("Got training data\n");
+    printSampleSketch(samples->inputSamples, 0);
+
+    int internalIterations = 1;
+    batchTrainNetworkGpu(
+        weights, numLayers, layerSizes,
+        samples->inputSamples, numSamples, internalIterations,
+        samples->trueOutput, .05, 1,
+        1
+    );
+    printf("Done training\n");
 }
 
 void testImageDataParsing()

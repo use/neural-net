@@ -15,6 +15,30 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
+#define HANDLE_ERROR( err ) ( HandleError( err, __FILE__, __LINE__ ) )
+void printVec(int** a, int n);
+
+static void HandleError( cudaError_t err, const char *file, int line )
+{
+    if (err != cudaSuccess)
+    {
+    printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+            file, line );
+    exit( EXIT_FAILURE );
+    }
+}
+
+void checkCUDAError(const char *msg)
+{
+    cudaError_t err = cudaGetLastError();
+    if( cudaSuccess != err)
+    {
+        fprintf(stderr, "Cuda error: %s: %s.\n", msg,
+                              cudaGetErrorString( err) );
+        exit(EXIT_FAILURE);
+    }
+}
+
 int listMax(int numValues, int *values)
 {
     int max = 0;
@@ -143,7 +167,7 @@ __device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int ma
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
-    float *nodeErrors, float *nodeValues)
+    float *nodeErrors, float *nodeValues, float *scratchWeights)
 {
     // int maxLayerSize = 0;
     // for (int i = 0; i < sizeof(layerSizes) / sizeof(int); i++)
@@ -162,12 +186,20 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
     int maxLayerSize = d_listMax(numLayers, layerSizes);
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
-    // make a local copy of weights so they can be adjusted
-    float *myWeights = (float *)malloc(sizeof(float) * numWeights);
+    int myWeightsIndex = (blockIdx.x * blockDim.x + threadIdx.x) * numWeights;
+
+    printf("start copying scratch weights\n");
+    // use the local copy of weights so they can be adjusted
+    int iterNum = 0;
     for (int i = 0; i < numWeights; i ++)
     {
-        myWeights[i] = weights[i];
+        scratchWeights[myWeightsIndex + i] = weights[i];
+        iterNum ++;
     }
+    // memcpy(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float));
+    // cudaMemcpyAsync(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float), cudaMemcpyDeviceToDevice);
+
+    printf("done copying scratch weights (%d read/writes)\n", iterNum);
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -176,11 +208,13 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
+        printf("start loading training sample\n");
         // load training sample
         for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
         {
             nodeValues[nodeDataOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
         }
+        printf("loaded training sample\n");
         if (0 && iterationIndex == 0 && dataIndex == 0)
         {
             printf("Training Data\n");
@@ -209,6 +243,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 printf("\n");
             }
         }
+        // this is incredibly slow
         // forward compute
         // start with first hidden layer
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
@@ -220,14 +255,15 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 {
                     float prevLayerValue = nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
                     int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
-                    sum += prevLayerValue * myWeights[index];
+                    sum += prevLayerValue * scratchWeights[myWeightsIndex + index];
                 }
                 // add bias
                 int biasIndex = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
-                sum += myWeights[biasIndex];
+                sum += scratchWeights[myWeightsIndex + biasIndex];
                 nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = d_activationFunction(sum);
             }
         }
+        printf("finished forward compute\n");
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
@@ -249,7 +285,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                     for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
                     {
                         int index = d_getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
-                        sum += myWeights[index] *
+                        sum += scratchWeights[myWeightsIndex + index] *
                             nodeErrors[nodeDataOffset + (layerIndex + 1) * maxLayerSize + nextLayerNodeIndex];
                     }
                     float value = nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
@@ -257,7 +293,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 }
             }
         }
-
+        printf("finished finding errors\n");
+        // this is incredibly slow
         // update weights
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
@@ -266,18 +303,19 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
                     int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
-                    myWeights[index] -=
+                    scratchWeights[myWeightsIndex + index] -=
                         learnRate *
                         nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] *
                         nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
                 }
                 // update bias
                 int index = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
-                myWeights[index] -=
+                scratchWeights[myWeightsIndex + index] -=
                     learnRate *
                     nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
             }
         }
+        printf("finished updating weights\n");
         if (
             0 && (
                 iterationIndex < 11 ||
@@ -316,15 +354,17 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 printf("\n");
             }
             // printf("Printing network for iteration %d\n", iterationIndex);
-            // printNetwork(myWeights, numLayers, layerSizes);
         }
     }
+    printf("finished internal iterations\n");
+
+    // this is incredibly slow
     for (int i = 0; i < numWeights; i++)
     {
         // int weightIndex = (blockIdx.x * blockDim.x + threadIdx.x) % numWeights
-        atomicAdd(&weightDeltas[i], myWeights[i] - weights[i]);
+        atomicAdd(&weightDeltas[i], scratchWeights[myWeightsIndex + i] - weights[i]);
     }
-    free(myWeights);
+    printf("finished atomicAdd\n");
 }
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
@@ -573,6 +613,7 @@ void batchTrainNetworkGpu(
     float *d_weightDeltas = 0;
     float *d_nodeErrors = 0;
     float *d_nodeValues = 0;
+    float *d_scratchWeights = 0;
     int numBatches = (int)ceil((float)trainDataCount / (float)batchSize);
     int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
 
@@ -587,6 +628,7 @@ void batchTrainNetworkGpu(
     cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
     cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_scratchWeights, sizeof(float) * batchSize * numWeights);
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
 
@@ -616,21 +658,22 @@ void batchTrainNetworkGpu(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
                 d_trueValues, learnRate, d_weightDeltas,
-                d_nodeErrors, d_nodeValues
+                d_nodeErrors, d_nodeValues, d_scratchWeights
             );
+            printf("Epoch: %d\n", i);
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
             cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
 
-            if (i < 10 || i % 1000 == 0)
-            {
-                printf("weightDeltas (iteration %d)\n", i);
-                for (int j = 0; j < numWeights; j++)
-                {
-                    printf("%.3f ", weightDeltas[j]);
-                }
-                printf("\n");
-            }
+            // if (i < 10 || i % 1000 == 0)
+            // {
+            //     printf("weightDeltas (iteration %d)\n", i);
+            //     for (int j = 0; j < numWeights; j++)
+            //     {
+            //         printf("%.3f ", weightDeltas[j]);
+            //     }
+            //     printf("\n");
+            // }
             for (int i = 0; i < numWeights; i++)
             {
                 weights[i] += weightDeltas[i];
@@ -639,7 +682,9 @@ void batchTrainNetworkGpu(
             {
                 weightDeltas[i] = 0;
             }
+            printf("finished batch %d\n", batchNumber);
         }
+        printf("finished epoch %d\n", i);
     }
 }
 
@@ -708,7 +753,7 @@ imageTrainingSamples *getImageData(char *filename, int numItems, int startingInd
     return samples;
 }
 
-void printSampleSketch(float *pixelValues, int sampleIndex)
+__device__ __host__ void printSampleSketch(float *pixelValues, int sampleIndex)
 {
     int width = 28;
     int height = 28;

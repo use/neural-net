@@ -22,7 +22,7 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
-    float *d_nodeErrors, float *d_nodeValues
+    float *d_nodeErrors, float *d_nodeValues, float *scratchWeights
 );
 
 void batchTrainNetworkGpu(
