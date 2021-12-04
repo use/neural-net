@@ -8,6 +8,7 @@ void testAndFunction();
 void testAndFunctionGpu();
 void testTonyFunction();
 void testTonyFunctionGpu();
+void testImageDataParsing();
 
 int main(void)
 {
@@ -15,13 +16,21 @@ int main(void)
     // testTonyFunction();
     // testTonyFunctionGpu();
 
-    char filePath[] = "data/mnist_train.csv";
-    imageTrainingSamples *samples = getImageData(filePath, 6, 1);
+    // testImageDataParsing();
 
+    testImageTraining();
+}
+
+void testImageDataParsing()
+{
+    imageTrainingSamples *samples = NULL;
+    char filePath[] = "data/mnist_train.csv";
+    samples = getImageData(filePath, 1000, 0);
     printSampleSketch(samples->inputSamples, 0);
-    printSampleSketch(samples->inputSamples, 1);
-    printSampleSketch(samples->inputSamples, 2);
-    printSampleSketch(samples->inputSamples, 3);
+
+    char filePath2[] = "data/mnist_test.csv";
+    samples = getImageData(filePath2, 1000, 0);
+    printSampleSketch(samples->inputSamples, 0);
 }
 void testAndFunctionGpu()
 {
