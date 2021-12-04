@@ -13,7 +13,15 @@ int main(void)
 {
     // testAndFunctionGpu();
     // testTonyFunction();
-    testTonyFunctionGpu();
+    // testTonyFunctionGpu();
+
+    char filePath[] = "data/mnist_train.csv";
+    imageTrainingSamples *samples = getImageData(filePath, 6, 1);
+
+    printSampleSketch(samples->inputSamples, 0);
+    printSampleSketch(samples->inputSamples, 1);
+    printSampleSketch(samples->inputSamples, 2);
+    printSampleSketch(samples->inputSamples, 3);
 }
 void testAndFunctionGpu()
 {

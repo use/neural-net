@@ -1,3 +1,10 @@
+typedef struct imageTrainingSamples
+{
+    int numItems;
+    float *inputSamples;
+    float *trueOutput;
+} imageTrainingSamples;
+
 float *createNetwork(int numLayers, int *layerSizes);
 
 void printNetwork(float *weights, int numLayers, int *layerSizes);
@@ -32,3 +39,7 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *sample);
 
 int listMax(int numValues, int *values);
 __device__ int d_listMax(int numValues, int *values);
+
+imageTrainingSamples *getImageData(char *filename, int numItems, int startingIndex);
+
+void printSampleSketch(float *pixelValues, int sampleIndex);

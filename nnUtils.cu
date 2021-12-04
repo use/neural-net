@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <string.h>
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -645,5 +646,106 @@ void batchTrainNetworkGpu(
                 weights[i] += weightDeltas[i];
             }
         }
+    }
+}
+
+imageTrainingSamples *getImageData(char *filename, int numItems, int startingIndex)
+{
+    int numInputNodes = 28 * 28;
+    int numOutputNodes = 10;
+
+    imageTrainingSamples *samples = (imageTrainingSamples *)malloc(sizeof(imageTrainingSamples));
+    samples->inputSamples = (float *)malloc(sizeof(float) * numItems * numInputNodes);
+    samples->trueOutput = (float *)malloc(sizeof(float) * numItems * numOutputNodes);
+
+    FILE *fileStream = fopen(filename, "r");
+
+    char *token;
+    char line[8192];
+    char sep[] = ",";
+    int isHeader = 1;
+    int itemIndex = 0;
+    int numItemsTaken = 0;
+    while (numItemsTaken < numItems && fgets(line, 8192, fileStream))
+    {
+        if (isHeader)
+        {
+            // skip CSV header
+            isHeader = false;
+            continue;
+        }
+
+        if (itemIndex < startingIndex)
+        {
+            itemIndex ++;
+            continue;
+        }
+
+        // first get the label / true value
+        token = strtok(line, sep);
+        int trueValue = strtol(token, NULL, 10);
+        for (int i = 0; i < numOutputNodes; i ++)
+        {
+            int index = numItemsTaken * numOutputNodes + i;
+            if (i == trueValue)
+            {
+                samples->trueOutput[index] = 1.0f;
+            }
+            else
+            {
+                samples->trueOutput[index] = 0.0f;
+            }
+        }
+
+        // now get the inputs - pixels with value from 0-255
+        int tokenIndex = 0;
+        while (token != NULL)
+        {
+            samples->inputSamples[numItemsTaken * numInputNodes + tokenIndex] = (float)strtol(token, NULL, 10);
+            token = strtok(NULL, sep);
+            tokenIndex ++;
+        }
+        numItemsTaken ++;
+        itemIndex ++;
+    }
+
+    samples->numItems = itemIndex;
+
+    return samples;
+}
+
+void printSampleSketch(float *pixelValues, int sampleIndex)
+{
+    int width = 28;
+    int height = 28;
+
+    char ch = 0;
+    float value = 0;
+
+    int sampleOffset = sampleIndex * width * height;
+
+    for (int y = 0; y < height; y ++)
+    {
+        for (int x = 0; x < width; x ++)
+        {
+            value = pixelValues[sampleOffset + y * width + x];
+            if (value > 192) {
+                ch = '#';
+            }
+            else if (value > 96)
+            {
+                ch = '=';
+            }
+            else if (value > 48)
+            {
+                ch = '-';
+            }
+            else
+            {
+                ch = ' ';
+            }
+            printf("%c", ch);
+        }
+        printf("\n");
     }
 }
