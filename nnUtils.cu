@@ -743,3 +743,18 @@ void printSampleSketch(float *pixelValues, int sampleIndex)
         printf("\n");
     }
 }
+
+int imageSampleTrueValue(float * trueValues, int sampleIndex)
+{
+    int nodesPerSample = 10;
+    int startIndex = nodesPerSample * sampleIndex;
+
+    for (int nodeIndex = 0; nodeIndex < nodesPerSample; nodeIndex ++)
+    {
+        if (trueValues[startIndex + nodeIndex] == 1)
+        {
+            return nodeIndex;
+        }
+    }
+    return 0;
+}

@@ -43,3 +43,5 @@ __device__ int d_listMax(int numValues, int *values);
 imageTrainingSamples *getImageData(char *filename, int numItems, int startingIndex);
 
 void printSampleSketch(float *pixelValues, int sampleIndex);
+
+int imageSampleTrueValue(float * trueValues, int sampleIndex);

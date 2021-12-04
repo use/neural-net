@@ -24,13 +24,22 @@ int main(void)
 void testImageDataParsing()
 {
     imageTrainingSamples *samples = NULL;
-    char filePath[] = "data/mnist_train.csv";
+    char filePath[] = "data/mnist_code_verification.csv";
     samples = getImageData(filePath, 1000, 0);
     printSampleSketch(samples->inputSamples, 0);
+    assert(imageSampleTrueValue(samples->trueOutput, 0) == 7);
 
-    char filePath2[] = "data/mnist_test.csv";
-    samples = getImageData(filePath2, 1000, 0);
-    printSampleSketch(samples->inputSamples, 0);
+    char filePath2[] = "data/mnist_code_verification.csv";
+    samples = getImageData(filePath2, 10, 5);
+
+    assert(imageSampleTrueValue(samples->trueOutput, 0) == 1);
+    assert(imageSampleTrueValue(samples->trueOutput, 1) == 4);
+    assert(imageSampleTrueValue(samples->trueOutput, 2) == 9);
+    assert(imageSampleTrueValue(samples->trueOutput, 3) == 5);
+    assert(imageSampleTrueValue(samples->trueOutput, 4) == 9);
+    assert(imageSampleTrueValue(samples->trueOutput, 5) == 0);
+    assert(imageSampleTrueValue(samples->trueOutput, 6) == 6);
+
 }
 void testAndFunctionGpu()
 {
