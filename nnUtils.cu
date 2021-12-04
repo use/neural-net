@@ -169,16 +169,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         myWeights[i] = weights[i];
     }
 
-    // reset weight deltas
-    if (blockIdx.x == 0 && threadIdx.x == 0)
-    {
-        for (int i = 0; i < numWeights; i++)
-        {
-            weightDeltas[i] = 0;
-        }
-    }
-    __syncthreads();
-
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
 
     int dataStartIndex = dataIndex * layerSizes[0];
@@ -644,6 +634,10 @@ void batchTrainNetworkGpu(
             for (int i = 0; i < numWeights; i++)
             {
                 weights[i] += weightDeltas[i];
+            }
+            for (int i = 0; i < numWeights; i++)
+            {
+                weightDeltas[i] = 0;
             }
         }
     }
