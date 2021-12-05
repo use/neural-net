@@ -10,6 +10,8 @@ void testTonyFunction();
 void testTonyFunctionGpu();
 void testImageDataParsing();
 void testImageTrainingGpu();
+void testImageTraining();
+void testImageSampleTestResult();
 
 int main(void)
 {
@@ -17,9 +19,104 @@ int main(void)
     // testTonyFunction();
     // testTonyFunctionGpu();
 
-    testImageDataParsing();
+    // testImageDataParsing();
+    // testImageSampleTestResult();
 
-    testImageTrainingGpu();
+    testImageTraining();
+    // testImageTrainingGpu();
+}
+
+void testImageTraining()
+{
+    int numLayers = 3;
+    int layerSizes[3] = {28 * 28, 100, 10};
+    float *weights = createNetwork(numLayers, layerSizes);
+    initNetworkWeights(weights, numLayers, layerSizes);
+    printf("Initialized weights\n");
+
+    int numSamples = 1000;
+    char filePath[] = "data/mnist_train.csv";
+    imageTrainingSamples *samples = getImageData(filePath, numSamples, 20000);
+    // assert(imageSampleTrueValue(samples->trueOutput, 0) == 0);
+    printf("Got training data\n");
+    printSampleSketch(samples->inputSamples, 0);
+
+    int numTestCases = 1000;
+    char testFilePath[] = "data/mnist_test.csv";
+    imageTrainingSamples *testCases = getImageData(testFilePath, numTestCases, 0);
+
+    int numEpochs = 10;
+    for (int epochIndex = 0; epochIndex < numEpochs; epochIndex ++)
+    {
+        trainNetwork(
+            weights, numLayers, layerSizes,
+            samples->inputSamples, numSamples,
+            1, samples->trueOutput, .1
+        );
+
+        printf("Done training epoch %d\n", epochIndex);
+
+        int numCorrect = 0;
+        for (int testCaseIndex = 0; testCaseIndex < numTestCases; testCaseIndex ++)
+        {
+            int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
+            float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
+            int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
+            // printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
+            for (int i = 0; i < layerSizes[numLayers - 1]; i++)
+            {
+                // printf("%.3f ", result[i]);
+            }
+            if (isCorrect)
+            {
+                numCorrect ++;
+                // printf("Correct");
+            }
+            else
+            {
+                // printf("NOPE");
+            }
+            // printf("\n");
+        }
+
+        printf("Accuracy: %.2f\n", (float)numCorrect / (float) numTestCases);
+        // printNetwork(weights, numLayers, layerSizes);
+    }
+
+    // printNetwork(weights, numLayers, layerSizes);
+
+    free(weights);
+    free(samples);
+    free(testCases);
+}
+
+void testImageSampleTestResult()
+{
+    float trueValues[] = {
+        0, 1, 0, 0, 0,   0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0,   0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0,   1, 0, 0, 0, 0,
+    };
+
+    float result1[] = {
+        0, .8, .3, 0, 0,   0, 0, 0, 0, 0
+    };
+    assert(1 == imageSampleTestResult(trueValues, 0, result1));
+
+    float result2[] = {
+        0, 0, .2, 0, 0,   0, 0, .5, 0, 0
+    };
+    assert(1 == imageSampleTestResult(trueValues, 1, result2));
+
+    float result3[] = {
+        .5, .5, .5, .5, .5,   7, .5, .5, .5, .5
+    };
+    assert(1 == imageSampleTestResult(trueValues, 2, result3));
+
+    float result4[] = {
+        0, 0, 0, 0, 0,   0, 1, 0, 0, 0
+    };
+    assert(0 == imageSampleTestResult(trueValues, 2, result4));
 }
 
 void testImageTrainingGpu()
@@ -30,7 +127,7 @@ void testImageTrainingGpu()
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
 
-    int numSamples = 1;
+    int numSamples = 1000;
     char filePath[] = "data/mnist_train.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
     assert(imageSampleTrueValue(samples->trueOutput, 0) == 5);
@@ -41,10 +138,35 @@ void testImageTrainingGpu()
     batchTrainNetworkGpu(
         weights, numLayers, layerSizes,
         samples->inputSamples, numSamples, internalIterations,
-        samples->trueOutput, .05, 1,
+        samples->trueOutput, .05, 100,
         1
     );
     printf("Done training\n");
+
+
+    int numTestCases = 10;
+    imageTrainingSamples *testCases = getImageData(filePath, numSamples, 0);
+
+    for (int testCaseIndex = 0; testCaseIndex < numTestCases; testCaseIndex ++)
+    {
+        int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
+        float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
+        int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
+        printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
+        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
+        {
+            printf("%.3f ", result[i]);
+        }
+        if (isCorrect)
+        {
+            printf("Correct");
+        }
+        else
+        {
+            printf("NOPE");
+        }
+        printf("\n");
+    }
 }
 
 void testImageDataParsing()
@@ -121,7 +243,7 @@ void testAndFunctionGpu()
         float *sample = (float *)malloc(inDataWidth * sizeof(float));
         sample[0] = trainData[i * inDataWidth + 0];
         sample[1] = trainData[i * inDataWidth + 1];
-        float *result = classify(weights, numLayers, layerSizes, sample);
+        float *result = classify(weights, numLayers, layerSizes, sample, 0);
 
         printf("classification input:\n");
         for (int j = 0; j < inDataWidth; j++)
@@ -191,7 +313,7 @@ void testAndFunction()
         float *sample = (float *)malloc(2 * sizeof(float));
         sample[0] = trainData[i * inDataWidth + 0];
         sample[1] = trainData[i * inDataWidth + 1];
-        float *result = classify(weights, numLayers, layerSizes, sample);
+        float *result = classify(weights, numLayers, layerSizes, sample, 0);
 
         printf("classification input:\n");
         for (int j = 0; j < 2; j++)
@@ -261,7 +383,7 @@ void testTonyFunction()
         float *sample = (float *)malloc(inDataWidth * sizeof(float));
         sample[0] = input[dataIndex + 0];
         sample[1] = input[dataIndex + 1];
-        float *result = classify(net, numLayers, layerSizes, sample);
+        float *result = classify(net, numLayers, layerSizes, sample, 0);
 
         printf("input: ");
         for (int i = 0; i < 2; i++)
@@ -346,7 +468,7 @@ void testTonyFunctionGpu()
         float *sample = (float *)malloc(inDataWidth * sizeof(float));
         sample[0] = input[dataIndex + 0];
         sample[1] = input[dataIndex + 1];
-        float *result = classify(net, numLayers, layerSizes, sample);
+        float *result = classify(net, numLayers, layerSizes, sample, 0);
 
         printf("input: ");
         for (int i = 0; i < 2; i++)

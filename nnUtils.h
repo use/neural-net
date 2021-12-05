@@ -35,7 +35,7 @@ void batchTrainNetworkGpu(
 float activationFunction(float x);
 __device__ float d_activationFunction(float x);
 
-float *classify(float *weights, int numLayers, int *layerSizes, float *sample);
+float *classify(float *weights, int numLayers, int *layerSizes, float *sample, int sampleIndex);
 
 int listMax(int numValues, int *values);
 __device__ int d_listMax(int numValues, int *values);
@@ -45,3 +45,7 @@ imageTrainingSamples *getImageData(char *filename, int numItems, int startingInd
 void printSampleSketch(float *pixelValues, int sampleIndex);
 
 int imageSampleTrueValue(float * trueValues, int sampleIndex);
+
+int imageSampleTestResult(float *trueValues, int sampleIndex, float *result);
+
+int imageSampleResultToInt(float *result);

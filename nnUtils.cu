@@ -116,7 +116,7 @@ void printNetwork(float *weights, int numLayers, int *layerSizes)
                         layerIndex, nodeIndex, weightIndex,
                         maxLayerSize
                     );
-                    printf("%.6f, ", weights[index]);
+                    printf("%.3f, ", weights[index]);
                     if (weightIndex == numWeights - 1)
                     {
                         printf("(bias)");
@@ -188,7 +188,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     int myWeightsIndex = (blockIdx.x * blockDim.x + threadIdx.x) * numWeights;
 
-    printf("start copying scratch weights\n");
+    // printf("start copying scratch weights\n");
     // use the local copy of weights so they can be adjusted
     int iterNum = 0;
     for (int i = 0; i < numWeights; i ++)
@@ -199,7 +199,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     // memcpy(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float));
     // cudaMemcpyAsync(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float), cudaMemcpyDeviceToDevice);
 
-    printf("done copying scratch weights (%d read/writes)\n", iterNum);
+    // printf("done copying scratch weights (%d read/writes)\n", iterNum);
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -208,13 +208,13 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
-        printf("start loading training sample\n");
+        // printf("start loading training sample\n");
         // load training sample
         for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
         {
             nodeValues[nodeDataOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
         }
-        printf("loaded training sample\n");
+        // printf("loaded training sample\n");
         if (0 && iterationIndex == 0 && dataIndex == 0)
         {
             printf("Training Data\n");
@@ -263,7 +263,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = d_activationFunction(sum);
             }
         }
-        printf("finished forward compute\n");
+        // printf("finished forward compute\n");
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
@@ -293,7 +293,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 }
             }
         }
-        printf("finished finding errors\n");
+        // printf("finished finding errors\n");
         // this is incredibly slow
         // update weights
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
@@ -315,7 +315,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                     nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
             }
         }
-        printf("finished updating weights\n");
+        // printf("finished updating weights\n");
         if (
             0 && (
                 iterationIndex < 11 ||
@@ -356,7 +356,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
             // printf("Printing network for iteration %d\n", iterationIndex);
         }
     }
-    printf("finished internal iterations\n");
+    // printf("finished internal iterations\n");
 
     // this is incredibly slow
     for (int i = 0; i < numWeights; i++)
@@ -364,7 +364,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // int weightIndex = (blockIdx.x * blockDim.x + threadIdx.x) % numWeights
         atomicAdd(&weightDeltas[i], scratchWeights[myWeightsIndex + i] - weights[i]);
     }
-    printf("finished atomicAdd\n");
+    // printf("finished atomicAdd\n");
 }
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
@@ -394,6 +394,10 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
+        if (iterationIndex % 100 == 0)
+        {
+            // printf("starting iteration %d\n", iterationIndex);
+        }
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
             int dataStartIndex = dataIndex * layerSizes[0];
@@ -403,34 +407,37 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
             {
                 values[0][nodeIndex] = trainingData[dataStartIndex + nodeIndex];
             }
-            if (iterationIndex == 0 && dataIndex == 1)
-            {
-                printf("Training Data\n");
-                for (int i = 0; i < numTrainingData; i++)
-                {
-                    printf("[%d] ", i);
-                    for (int j = 0; j < layerSizes[0]; j++)
-                    {
-                        printf("%.4f ", trainingData[dataStartIndex + j]);
-                    }
-                    printf("(");
-                    for (int j = 0; j < layerSizes[numLayers - 1]; j++)
-                    {
-                        printf("%.4f ", trueValues[trueValueStartIndex + j]);
-                    }
-                    printf(")\n");
-                }
-                printf("Values\n");
-                for (int i = 0; i < numLayers; i++)
-                {
-                    printf("[%d] ", i);
-                    for (int j = 0; j < maxLayerSize; j++)
-                    {
-                        printf("%.4f ", values[i][j]);
-                    }
-                    printf("\n");
-                }
-            }
+            // if (iterationIndex == 0 && dataIndex == 0)
+            // {
+            //     printf("Training Data\n");
+            //     for (int i = 0; i < numTrainingData; i++)
+            //     {
+            //         printf("[%d] ", i);
+            //         for (int j = 0; j < layerSizes[0]; j++)
+            //         {
+            //             printf("%.4f ", trainingData[dataStartIndex + j]);
+            //         }
+            //         printf("(");
+            //         for (int j = 0; j < layerSizes[numLayers - 1]; j++)
+            //         {
+            //             printf("%.4f ", trueValues[trueValueStartIndex + j]);
+            //         }
+            //         printf(")\n");
+            //     }
+            //     printf("Values\n");
+            //     for (int i = 0; i < numLayers; i++)
+            //     {
+            //         printf("[%d] ", i);
+            //         for (int j = 0; j < maxLayerSize; j++)
+            //         {
+            //             printf("%.4f ", values[i][j]);
+            //         }
+            //         printf("\n");
+            //     }
+            // }
+            // printSampleSketch(trainingData, dataIndex);
+            // printf("(%d)\n", imageSampleTrueValue(trueValues, dataIndex));
+
             // forward compute
             // start with first hidden layer
             for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
@@ -508,41 +515,66 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                 iterationIndex == numIterations - 1
             )
             {
-                printf("\nIteration %d\n", iterationIndex);
-                printf("(Training sample)\n");
-                for (int dataNodeIndex = 0; dataNodeIndex < layerSizes[0]; dataNodeIndex ++)
-                {
-                    printf("%.6f ", trainingData[dataStartIndex + dataNodeIndex]);
-                }
-                printf("\n");
-                printf("(Value data below)\n");
-                for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
-                {
-                    printf("[%d] ", layerIndex);
-                    for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-                    {
-                        printf("%.6f ", values[layerIndex][nodeIndex]);
-                    }
-                    printf("\n");
-                }
-                printf("(Error data below)\n");
-                for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
-                {
-                    printf("[%d] ", layerIndex);
-                    for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-                    {
-                        printf("%.6f ", errors[layerIndex][nodeIndex]);
-                    }
-                    printf("\n");
-                }
-                printf("Printing network for iteration %d\n", iterationIndex);
-                printNetwork(weights, numLayers, layerSizes);
+                // printf("\nIteration %d\n", iterationIndex);
+                // printf("(Training sample)\n");
+                // for (int dataNodeIndex = 0; dataNodeIndex < layerSizes[0]; dataNodeIndex ++)
+                // {
+                //     printf("%.2f ", trainingData[dataStartIndex + dataNodeIndex]);
+                // }
+                // printf("\n");
+                // printf("(Value data below)\n");
+                // for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
+                // {
+                //     printf("[%d] ", layerIndex);
+                //     for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+                //     {
+                //         printf("%.2f ", values[layerIndex][nodeIndex]);
+                //     }
+                //     printf("\n");
+                // }
+
+
+                // printf("---- sample index %d (%d)----\n", dataIndex, dataStartIndex);
+                // printf("(Outputs)\n");
+                // for (int nodeIndex = 0; nodeIndex < layerSizes[numLayers - 1]; nodeIndex ++)
+                // {
+                //     printf("%.2f ", values[numLayers - 1][nodeIndex]);
+                // }
+                // printf("\n");
+                // printf("(Error data below) (true value: %d)\n", imageSampleTrueValue(trueValues, dataIndex));
+                // printf("(Output Delta Errors)\n");
+                // for (int nodeIndex = 0; nodeIndex < layerSizes[numLayers - 1]; nodeIndex ++)
+                // {
+                //     printf("%.2f ", errors[numLayers - 1][nodeIndex]);
+                // }
+                // printf("\n");
+                // printf("Printing network for iteration %d\n", iterationIndex);
             }
         }
     }
+    // printf("(Value data below)\n");
+    // for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
+    // {
+    //     printf("[%d] ", layerIndex);
+    //     for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+    //     {
+    //         printf("%.2f ", values[layerIndex][nodeIndex]);
+    //     }
+    //     printf("\n");
+    // }
+    // printf("(Error data below)\n");
+    // for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
+    // {
+    //     printf("[%d] ", layerIndex);
+    //     for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+    //     {
+    //         printf("%.2f ", errors[layerIndex][nodeIndex]);
+    //     }
+    //     printf("\n");
+    // }
 }
 
-float *classify(float *weights, int numLayers, int *layerSizes, float *sample)
+float *classify(float *weights, int numLayers, int *layerSizes, float *samples, int sampleIndex)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
     float values[numLayers][maxLayerSize];
@@ -553,10 +585,11 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *sample)
             values[i][j] = 0;
         }
     }
+    int sampleOffset = layerSizes[0] * sampleIndex;
     // load input layer from provided sample
     for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
     {
-        values[0][nodeIndex] = sample[nodeIndex];
+        values[0][nodeIndex] = samples[sampleOffset + nodeIndex];
     }
     for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
     {
@@ -575,7 +608,7 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *sample)
             values[layerIndex][nodeIndex] = activationFunction(sum);
         }
     }
-    float *out = (float *)malloc(sizeof(int) * layerSizes[numLayers - 1]);
+    float *out = (float *)malloc(sizeof(float) * layerSizes[numLayers - 1]);
     for (int nodeIndex = 0; nodeIndex < layerSizes[numLayers - 1]; nodeIndex ++)
     {
         out[nodeIndex] = values[numLayers - 1][nodeIndex];
@@ -660,7 +693,7 @@ void batchTrainNetworkGpu(
                 d_trueValues, learnRate, d_weightDeltas,
                 d_nodeErrors, d_nodeValues, d_scratchWeights
             );
-            printf("Epoch: %d\n", i);
+            // printf("Epoch: %d\n", i);
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
             cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
@@ -682,9 +715,9 @@ void batchTrainNetworkGpu(
             {
                 weightDeltas[i] = 0;
             }
-            printf("finished batch %d\n", batchNumber);
+            // printf("finished batch %d\n", batchNumber);
         }
-        printf("finished epoch %d\n", i);
+        // printf("finished epoch %d\n", i);
     }
 }
 
@@ -740,7 +773,8 @@ imageTrainingSamples *getImageData(char *filename, int numItems, int startingInd
         int tokenIndex = 0;
         while (token != NULL)
         {
-            samples->inputSamples[numItemsTaken * numInputNodes + tokenIndex] = (float)strtol(token, NULL, 10);
+            float rawValue = (float)strtol(token, NULL, 10);
+            samples->inputSamples[numItemsTaken * numInputNodes + tokenIndex] = rawValue / (float)255;
             token = strtok(NULL, sep);
             tokenIndex ++;
         }
@@ -768,14 +802,14 @@ __device__ __host__ void printSampleSketch(float *pixelValues, int sampleIndex)
         for (int x = 0; x < width; x ++)
         {
             value = pixelValues[sampleOffset + y * width + x];
-            if (value > 192) {
+            if (value > .75) {
                 ch = '#';
             }
-            else if (value > 96)
+            else if (value > .5)
             {
                 ch = '=';
             }
-            else if (value > 48)
+            else if (value > .25)
             {
                 ch = '-';
             }
@@ -802,4 +836,36 @@ int imageSampleTrueValue(float * trueValues, int sampleIndex)
         }
     }
     return 0;
+}
+
+int imageSampleTestResult(float *trueValues, int sampleIndex, float *result)
+{
+    int nodesPerSample = 10;
+
+    int trueValue = imageSampleTrueValue(trueValues, sampleIndex);
+
+    int selectedValue = imageSampleResultToInt(result);
+
+    if (trueValue == selectedValue) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int imageSampleResultToInt(float *result)
+{
+    int nodesPerSample = 10;
+    int selectedValue = 0;
+    float highestActivation = 0;
+    for (int nodeIndex = 0; nodeIndex < nodesPerSample; nodeIndex ++)
+    {
+        if (result[nodeIndex] > highestActivation)
+        {
+            highestActivation = result[nodeIndex];
+            selectedValue = nodeIndex;
+        }
+    }
+
+    return selectedValue;
 }
