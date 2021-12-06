@@ -99,13 +99,13 @@ float *createNetwork(int numLayers, int *layerSizes)
 void printNetwork(float *weights, int numLayers, int *layerSizes)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
-    for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
+    for (int layerIndex = 1; layerIndex < numLayers; layerIndex++)
     {
         printf("\n---<Layer %d>\n", layerIndex);
         printf("Layer size: %d\n", layerSizes[layerIndex]);
         for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
         {
-            printf("[%d] ", nodeIndex);
+            printf("[node %d] ", nodeIndex);
             if (layerIndex > 0)
             {
                 // print weights pointing to this node
@@ -122,8 +122,8 @@ void printNetwork(float *weights, int numLayers, int *layerSizes)
                         printf("(bias)");
                     }
                 }
-                printf("   ");
             }
+            printf("\n");
         }
         printf("\n");
     }
@@ -400,6 +400,10 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
         }
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
+            if (dataIndex % 1000 == 0)
+            {
+                printf("sample %d\n", dataIndex);
+            }
             int dataStartIndex = dataIndex * layerSizes[0];
             int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
             // load training sample
