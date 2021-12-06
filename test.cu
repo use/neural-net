@@ -22,8 +22,8 @@ int main(void)
     // testImageDataParsing();
     // testImageSampleTestResult();
 
-    testImageTraining();
-    // testImageTrainingGpu();
+    // testImageTraining();
+    testImageTrainingGpu();
 }
 
 void testImageTraining()
@@ -122,51 +122,29 @@ void testImageSampleTestResult()
 void testImageTrainingGpu()
 {
     int numLayers = 3;
-    int layerSizes[3] = {28 * 28, 100, 10};
+    int layerSizes[3] = {28 * 28, 20, 10};
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
 
-    int numSamples = 1000;
+    int numSamples = 60000;
     char filePath[] = "data/mnist_train.csv";
+    char filePathTest[] = "data/mnist_test.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
-    assert(imageSampleTrueValue(samples->trueOutput, 0) == 5);
     printf("Got training data\n");
-    printSampleSketch(samples->inputSamples, 0);
+
+    imageTrainingSamples *testCases = getImageData(filePathTest, 10000, 0);
 
     int internalIterations = 1;
     batchTrainNetworkGpu(
         weights, numLayers, layerSizes,
         samples->inputSamples, numSamples, internalIterations,
-        samples->trueOutput, .05, 100,
-        1
+        samples->trueOutput, .05, 64,
+        3, testCases
     );
     printf("Done training\n");
 
-
-    int numTestCases = 10;
-    imageTrainingSamples *testCases = getImageData(filePath, numSamples, 0);
-
-    for (int testCaseIndex = 0; testCaseIndex < numTestCases; testCaseIndex ++)
-    {
-        int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
-        float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
-        int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
-        printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
-        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
-        {
-            printf("%.3f ", result[i]);
-        }
-        if (isCorrect)
-        {
-            printf("Correct");
-        }
-        else
-        {
-            printf("NOPE");
-        }
-        printf("\n");
-    }
+    // printNetwork(weights, numLayers, layerSizes);
 }
 
 void testImageDataParsing()
@@ -233,7 +211,7 @@ void testAndFunctionGpu()
         weights, numLayers, layerSizes,
         trainData, inDataCount, internalIterations,
         trueValues, .05, 2,
-        10000
+        10000, NULL
     );
 
     printNetwork(weights, numLayers, layerSizes);
@@ -457,7 +435,7 @@ void testTonyFunctionGpu()
         net, numLayers, layerSizes,
         input, inDataLength, 1,
         trueOut, .05, 64,
-        100000
+        100000, NULL
     );
 
     printNetwork(net, numLayers, layerSizes);

@@ -169,14 +169,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
     float *nodeErrors, float *nodeValues, float *scratchWeights)
 {
-    // int maxLayerSize = 0;
-    // for (int i = 0; i < sizeof(layerSizes) / sizeof(int); i++)
-    // {
-    //     if (layerSizes[i] > maxLayerSize)
-    //     {
-    //         maxLayerSize = layerSizes[i];
-    //     }
-    // }
 
     int dataIndex = blockIdx.x * blockDim.x + threadIdx.x;
     if (dataIndex >= numTrainingData)
@@ -184,22 +176,10 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         return;
     }
 
+    int debug = 0;
     int maxLayerSize = d_listMax(numLayers, layerSizes);
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     int myWeightsIndex = (blockIdx.x * blockDim.x + threadIdx.x) * numWeights;
-
-    // printf("start copying scratch weights\n");
-    // use the local copy of weights so they can be adjusted
-    int iterNum = 0;
-    for (int i = 0; i < numWeights; i ++)
-    {
-        scratchWeights[myWeightsIndex + i] = weights[i];
-        iterNum ++;
-    }
-    // memcpy(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float));
-    // cudaMemcpyAsync(scratchWeights + myWeightsIndex, weights, numWeights * sizeof(float), cudaMemcpyDeviceToDevice);
-
-    // printf("done copying scratch weights (%d read/writes)\n", iterNum);
 
     int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -208,14 +188,21 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
-        // printf("start loading training sample\n");
+        if (debug)
+        {
+            printf("start loading training sample\n");
+        }
         // load training sample
         for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
         {
             nodeValues[nodeDataOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
         }
-        // printf("loaded training sample\n");
-        if (0 && iterationIndex == 0 && dataIndex == 0)
+
+        if (debug)
+        {
+            printf("loaded training sample\n");
+        }
+        if (debug && iterationIndex == 0 && dataIndex == 0)
         {
             printf("Training Data\n");
             for (int i = 0; i < numTrainingData; i++)
@@ -243,7 +230,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 printf("\n");
             }
         }
-        // this is incredibly slow
         // forward compute
         // start with first hidden layer
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
@@ -263,7 +249,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = d_activationFunction(sum);
             }
         }
-        // printf("finished forward compute\n");
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
@@ -293,8 +278,10 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 }
             }
         }
-        // printf("finished finding errors\n");
-        // this is incredibly slow
+        if (debug)
+        {
+            printf("finished finding errors\n");
+        }
         // update weights
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
@@ -315,9 +302,12 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                     nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
             }
         }
-        // printf("finished updating weights\n");
+        if (debug)
+        {
+            printf("finished updating weights\n");
+        }
         if (
-            0 && (
+            debug && (
                 iterationIndex < 11 ||
                 iterationIndex == 100 ||
                 iterationIndex == 1000 ||
@@ -353,18 +343,12 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 }
                 printf("\n");
             }
-            // printf("Printing network for iteration %d\n", iterationIndex);
         }
     }
-    // printf("finished internal iterations\n");
-
-    // this is incredibly slow
-    for (int i = 0; i < numWeights; i++)
+    if (debug)
     {
-        // int weightIndex = (blockIdx.x * blockDim.x + threadIdx.x) % numWeights
-        atomicAdd(&weightDeltas[i], scratchWeights[myWeightsIndex + i] - weights[i]);
+        printf("finished internal iterations\n");
     }
-    // printf("finished atomicAdd\n");
 }
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
@@ -634,11 +618,12 @@ void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
-    int numEpochs)
+    int numEpochs, imageTrainingSamples *testCases)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
     int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
     float *weightDeltas = (float *) malloc(sizeof(float) * numWeights);
+    float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
 
     int threadsPerBlock = 8;
@@ -654,6 +639,7 @@ void batchTrainNetworkGpu(
     int numBatches = (int)ceil((float)trainDataCount / (float)batchSize);
     int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
 
+    int debug = 0;
     printf("batchSize: %d\n", batchSize);
     printf("numBatches: %d\n", numBatches);
     printf("numBlocks: %d\n", numBlocks);
@@ -669,7 +655,7 @@ void batchTrainNetworkGpu(
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
 
-    for (int i = 0; i < numEpochs; i++)
+    for (int epochIndex = 0; epochIndex < numEpochs; epochIndex++)
     {
 
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
@@ -691,37 +677,70 @@ void batchTrainNetworkGpu(
             cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
             cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
 
+            if (debug)
+            {
+                printf("start copying scratch weights\n");
+            }
+            for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
+            {
+                cudaMemcpy(d_scratchWeights + sampleIndex * numWeights, d_weights, numWeights * sizeof(float), cudaMemcpyDeviceToDevice);
+            }
+            if (debug)
+            {
+                printf("done copying scratch weights\n");
+            }
             trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
                 d_trueValues, learnRate, d_weightDeltas,
                 d_nodeErrors, d_nodeValues, d_scratchWeights
             );
-            // printf("Epoch: %d\n", i);
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
-            cudaMemcpy(weightDeltas, d_weightDeltas, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
 
-            // if (i < 10 || i % 1000 == 0)
-            // {
-            //     printf("weightDeltas (iteration %d)\n", i);
-            //     for (int j = 0; j < numWeights; j++)
-            //     {
-            //         printf("%.3f ", weightDeltas[j]);
-            //     }
-            //     printf("\n");
-            // }
-            for (int i = 0; i < numWeights; i++)
+            cudaMemcpy(scratchWeights, d_scratchWeights, thisBatchNumSamples * numWeights * sizeof(float), cudaMemcpyDeviceToHost);
+
+            if (debug)
             {
-                weights[i] += weightDeltas[i];
+                printf("start adding deltas\n");
+            }
+            for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
+            {
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1] + 1; weightIndex ++)
+                    {
+                        float delta = 0;
+                        int weightFlatIndex = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
+                        {
+                            float thisDelta = scratchWeights[sampleIndex * numWeights + weightFlatIndex] - weights[weightFlatIndex];
+                            delta += thisDelta;
+                        }
+                        weights[weightFlatIndex] += delta;
+                    }
+                }
+            }
+            if (debug)
+            {
+                printf("done adding deltas\n");
             }
             for (int i = 0; i < numWeights; i++)
             {
                 weightDeltas[i] = 0;
             }
-            // printf("finished batch %d\n", batchNumber);
+            if (1 || debug)
+            {
+                printf("Finished epoch %d / %d, batch %d / %d\n",
+                    epochIndex, numEpochs,
+                    batchNumber, numBatches);
+            }
         }
-        // printf("finished epoch %d\n", i);
+        printf("finished epoch %d\n", epochIndex);
+        if (testCases)
+        {
+            testNetwork(weights, numLayers, layerSizes, testCases);
+        }
     }
 }
 
@@ -844,8 +863,6 @@ int imageSampleTrueValue(float * trueValues, int sampleIndex)
 
 int imageSampleTestResult(float *trueValues, int sampleIndex, float *result)
 {
-    int nodesPerSample = 10;
-
     int trueValue = imageSampleTrueValue(trueValues, sampleIndex);
 
     int selectedValue = imageSampleResultToInt(result);
@@ -872,4 +889,30 @@ int imageSampleResultToInt(float *result)
     }
 
     return selectedValue;
+}
+
+void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases)
+{
+    int numCorrect = 0;
+    for (int testCaseIndex = 0; testCaseIndex < testCases->numItems; testCaseIndex ++)
+    {
+        int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
+        float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
+        int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
+        // printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
+        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
+        {
+            // printf("%.3f ", result[i]);
+        }
+        if (isCorrect)
+        {
+            numCorrect ++;
+            // printf("Correct");
+        }
+        else
+        {
+            // printf("NOPE");
+        }
+    }
+    printf("Accuracy: %.2f\n", (float)numCorrect / (float) testCases->numItems);
 }

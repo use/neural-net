@@ -29,7 +29,7 @@ void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
-    int numEpochs
+    int numEpochs, imageTrainingSamples *testCases
 );
 
 float activationFunction(float x);
@@ -49,3 +49,5 @@ int imageSampleTrueValue(float * trueValues, int sampleIndex);
 int imageSampleTestResult(float *trueValues, int sampleIndex, float *result);
 
 int imageSampleResultToInt(float *result);
+
+void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases);
