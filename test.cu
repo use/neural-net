@@ -29,19 +29,19 @@ int main(void)
 void testImageTraining()
 {
     int numLayers = 3;
-    int layerSizes[3] = {28 * 28, 100, 10};
+    int layerSizes[3] = {28 * 28, 20, 10};
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
 
-    int numSamples = 1000;
+    int numSamples = 60000;
     char filePath[] = "data/mnist_train.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 20000);
     // assert(imageSampleTrueValue(samples->trueOutput, 0) == 0);
     printf("Got training data\n");
     printSampleSketch(samples->inputSamples, 0);
 
-    int numTestCases = 1000;
+    int numTestCases = 10000;
     char testFilePath[] = "data/mnist_test.csv";
     imageTrainingSamples *testCases = getImageData(testFilePath, numTestCases, 0);
 
@@ -83,7 +83,7 @@ void testImageTraining()
         // printNetwork(weights, numLayers, layerSizes);
     }
 
-    // printNetwork(weights, numLayers, layerSizes);
+    printNetwork(weights, numLayers, layerSizes);
 
     free(weights);
     free(samples);
