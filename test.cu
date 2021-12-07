@@ -36,7 +36,7 @@ void testImageTraining()
 
     int numSamples = 60000;
     char filePath[] = "data/mnist_train.csv";
-    imageTrainingSamples *samples = getImageData(filePath, numSamples, 20000);
+    imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
     // assert(imageSampleTrueValue(samples->trueOutput, 0) == 0);
     printf("Got training data\n");
     printSampleSketch(samples->inputSamples, 0);
