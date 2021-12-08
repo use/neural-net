@@ -23,16 +23,16 @@ int batchSizeDefault = 64;
 
 int main(int argc, char *argv[])
 {
-    
+    // these features were used during development but not really used now
+    // maybe they could be moved to a test file
+
     // testAndFunctionGpu();
     // testTonyFunction();
     // testTonyFunctionGpu();
-
     // testImageDataParsing();
     // testImageSampleTestResult();
 
-    // testImageTraining();
-
+    // parse arguments
     int opt;
 
     int numNeurons = numNeuronsDefault;
@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
                 usage();
         }
     }
-
 
     if (
         optind >= argc ||
@@ -141,9 +140,7 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
 
     char filePath[] = "data/mnist_train.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
-    // assert(imageSampleTrueValue(samples->trueOutput, 0) == 0);
     printf("Got training data\n");
-    // printSampleSketch(samples->inputSamples, 0);
 
     char testFilePath[] = "data/mnist_test.csv";
     imageTrainingSamples *testCases = getImageData(testFilePath, numTestCases, 0);
@@ -266,6 +263,7 @@ void testImageDataParsing()
     assert(imageSampleTrueValue(samples->trueOutput, 6) == 6);
 
 }
+
 void testAndFunctionGpu()
 {
     int numLayers = 3;
