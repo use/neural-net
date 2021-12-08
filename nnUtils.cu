@@ -640,9 +640,9 @@ void batchTrainNetworkGpu(
     int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
 
     int debug = 0;
-    printf("batchSize: %d\n", batchSize);
-    printf("numBatches: %d\n", numBatches);
-    printf("numBlocks: %d\n", numBlocks);
+    printf("Num Batches: %d\n", numBatches);
+    printf("Threads Per Block: %d\n", threadsPerBlock);
+    printf("Num Blocks: %d\n", numBlocks);
 
     cudaMalloc(&d_weights, sizeof(float) * numWeights);
     cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);

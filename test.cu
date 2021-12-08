@@ -3,18 +3,27 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <math.h>
+#include <unistd.h>
 
 void testAndFunction();
 void testAndFunctionGpu();
 void testTonyFunction();
 void testTonyFunctionGpu();
 void testImageDataParsing();
-void testImageTrainingGpu();
-void testImageTraining();
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize);
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs);
 void testImageSampleTestResult();
+void usage();
 
-int main(void)
+int numNeuronsDefault = 20;
+int numSamplesDefault = 10000;
+int numTestCasesDefault = 1000;
+int numEpochsDefault = 1;
+int batchSizeDefault = 64;
+
+int main(int argc, char *argv[])
 {
+    
     // testAndFunctionGpu();
     // testTonyFunction();
     // testTonyFunctionGpu();
@@ -23,29 +32,122 @@ int main(void)
     // testImageSampleTestResult();
 
     // testImageTraining();
-    testImageTrainingGpu();
+
+    int opt;
+
+    int numNeurons = numNeuronsDefault;
+    int numSamples = numSamplesDefault;
+    int numTestCases = numTestCasesDefault;
+    int numEpochs = numEpochsDefault;
+    int batchSize = batchSizeDefault;
+    char type = 'g';
+
+    while ((opt = getopt(argc, argv, "n:t:v:e:b:")) != -1)
+    {
+        switch (opt)
+        {
+            case 'n':
+                numNeurons = atoi(optarg);
+                break;
+            case 't':
+                numSamples = atoi(optarg);
+                break;
+            case 'v':
+                numTestCases = atoi(optarg);
+                break;
+            case 'e':
+                numEpochs = atoi(optarg);
+                break;
+            case 'b':
+                batchSize = atoi(optarg);
+                break;
+            default:
+                usage();
+        }
+    }
+
+
+    if (
+        optind >= argc ||
+        numNeurons < 1 ||
+        numSamples < 1 ||
+        numTestCases < 1 ||
+        numEpochs < 1 ||
+        batchSize < 1
+    )
+    {
+        usage();
+    }
+
+    if (0 == strcmp(argv[optind], "gpu"))
+    {
+        type = 'g';
+    }
+    else if (0 == strcmp(argv[optind], "cpu"))
+    {
+        type = 'c';
+    } else {
+        usage();
+    }
+
+    printf("Hidden Layer Neurons: %d\n", numNeurons);
+    printf("Training Samples: %d\n", numSamples);
+    printf("Test Cases: %d\n", numTestCases);
+    printf("Epochs: %d\n", numEpochs);
+
+    if (type == 'g')
+    {
+        printf("Batch Size: %d\n", batchSize);
+        printf("Training with GPU\n");
+        testImageTrainingGpu(numNeurons, numSamples, numTestCases, numEpochs, batchSize);
+    }
+    else if (type == 'c')
+    {
+        printf("Training with CPU\n");
+        testImageTraining(numNeurons, numSamples, numTestCases, numEpochs);
+    }
 }
 
-void testImageTraining()
+void usage()
+{
+    printf("Argument should be either \"gpu\" or \"cpu\" to run that type of training.\n");
+    printf("  -n <number> Use <number> neurons in the hidden layer (default %d)\n",
+        numNeuronsDefault);
+    printf("  -t <number> Use <number> training samples (default %d)\n",
+        numSamplesDefault);
+    printf("  -v <number> Use <number> verification (testing) samples (default %d)\n",
+        numTestCasesDefault);
+    printf("  -e <number> Run <number> epochs (default %d)\n",
+        numEpochsDefault);
+    printf("  -b <number> Use <number> batch size (default %d) (\"gpu\" only)\n",
+        batchSizeDefault);
+    printf("Program defaults:\n");
+    printf("Hidden Layer Neurons: %d\n", numNeuronsDefault);
+    printf("Training Samples: %d\n", numSamplesDefault);
+    printf("Test Cases: %d\n", numTestCasesDefault);
+    printf("Epochs: %d\n", numEpochsDefault);
+    printf("Batch Size: %d\n", batchSizeDefault);
+
+    exit(EXIT_FAILURE);
+}
+
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs)
 {
     int numLayers = 3;
-    int layerSizes[3] = {28 * 28, 20, 10};
+    int layerSizes[3] = {28 * 28, numHidden, 10};
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
 
-    int numSamples = 60000;
     char filePath[] = "data/mnist_train.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
     // assert(imageSampleTrueValue(samples->trueOutput, 0) == 0);
     printf("Got training data\n");
-    printSampleSketch(samples->inputSamples, 0);
+    // printSampleSketch(samples->inputSamples, 0);
 
-    int numTestCases = 10000;
     char testFilePath[] = "data/mnist_test.csv";
     imageTrainingSamples *testCases = getImageData(testFilePath, numTestCases, 0);
 
-    int numEpochs = 10;
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex ++)
     {
         trainNetwork(
@@ -83,8 +185,6 @@ void testImageTraining()
         // printNetwork(weights, numLayers, layerSizes);
     }
 
-    printNetwork(weights, numLayers, layerSizes);
-
     free(weights);
     free(samples);
     free(testCases);
@@ -119,28 +219,27 @@ void testImageSampleTestResult()
     assert(0 == imageSampleTestResult(trueValues, 2, result4));
 }
 
-void testImageTrainingGpu()
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize)
 {
     int numLayers = 3;
-    int layerSizes[3] = {28 * 28, 20, 10};
+    int layerSizes[3] = {28 * 28, numHidden, 10};
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
 
-    int numSamples = 60000;
     char filePath[] = "data/mnist_train.csv";
     char filePathTest[] = "data/mnist_test.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
     printf("Got training data\n");
 
-    imageTrainingSamples *testCases = getImageData(filePathTest, 10000, 0);
+    imageTrainingSamples *testCases = getImageData(filePathTest, numTestCases, 0);
 
     int internalIterations = 1;
     batchTrainNetworkGpu(
         weights, numLayers, layerSizes,
         samples->inputSamples, numSamples, internalIterations,
-        samples->trueOutput, .05, 64,
-        3, testCases
+        samples->trueOutput, .05, batchSize,
+        numEpochs, testCases
     );
     printf("Done training\n");
 
