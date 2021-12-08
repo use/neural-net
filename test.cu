@@ -23,15 +23,6 @@ int batchSizeDefault = 64;
 
 int main(int argc, char *argv[])
 {
-    // these features were used during development but not really used now
-    // maybe they could be moved to a test file
-
-    // testAndFunctionGpu();
-    // testTonyFunction();
-    // testTonyFunctionGpu();
-    // testImageDataParsing();
-    // testImageSampleTestResult();
-
     // parse arguments
     int opt;
 
@@ -105,6 +96,15 @@ int main(int argc, char *argv[])
         printf("Training with CPU\n");
         testImageTraining(numNeurons, numSamples, numTestCases, numEpochs);
     }
+
+    // these features were used during development but not really used now
+    // maybe they could be moved to a test file
+
+    // testAndFunctionGpu();
+    // testTonyFunction();
+    // testTonyFunctionGpu();
+    // testImageDataParsing();
+    // testImageSampleTestResult();
 }
 
 void usage()
@@ -121,11 +121,11 @@ void usage()
     printf("  -b <number> Use <number> batch size (default %d) (\"gpu\" only)\n",
         batchSizeDefault);
     printf("Program defaults:\n");
-    printf("Hidden Layer Neurons: %d\n", numNeuronsDefault);
-    printf("Training Samples: %d\n", numSamplesDefault);
-    printf("Test Cases: %d\n", numTestCasesDefault);
-    printf("Epochs: %d\n", numEpochsDefault);
-    printf("Batch Size: %d\n", batchSizeDefault);
+    printf("  Hidden Layer Neurons: %d\n", numNeuronsDefault);
+    printf("  Training Samples: %d\n", numSamplesDefault);
+    printf("  Test Cases: %d\n", numTestCasesDefault);
+    printf("  Epochs: %d\n", numEpochsDefault);
+    printf("  Batch Size: %d\n", batchSizeDefault);
 
     exit(EXIT_FAILURE);
 }
