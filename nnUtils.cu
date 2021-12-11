@@ -245,34 +245,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         {
             printf("loaded training sample\n");
         }
-        if (debug && iterationIndex == 0 && dataIndex == 0)
-        {
-            printf("Training Data\n");
-            for (int i = 0; i < numTrainingData; i++)
-            {
-                printf("[%d] ", i);
-                for (int j = 0; j < layerSizes[0]; j++)
-                {
-                    printf("%.4f ", trainingData[dataStartIndex + j]);
-                }
-                printf("(");
-                for (int j = 0; j < layerSizes[numLayers - 1]; j++)
-                {
-                    printf("%.4f ", trueValues[trueValueStartIndex + j]);
-                }
-                printf(")\n");
-            }
-            printf("Values\n");
-            for (int i = 0; i < numLayers; i++)
-            {
-                printf("[%d] ", i);
-                for (int j = 0; j < maxLayerSize; j++)
-                {
-                    printf("%.4f ", nodeValues[nodeDataOffset + i * maxLayerSize + j]);
-                }
-                printf("\n");
-            }
-        }
         // forward compute
         // start with first hidden layer
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
@@ -348,44 +320,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         if (debug)
         {
             printf("finished updating weights\n");
-        }
-        if (
-            debug && (
-                iterationIndex < 11 ||
-                iterationIndex == 100 ||
-                iterationIndex == 1000 ||
-                iterationIndex == 10000 ||
-                iterationIndex == numIterations - 1
-            )
-        )
-        {
-            printf("\nIteration %d\n", iterationIndex);
-            printf("(Training sample)\n");
-            for (int dataNodeIndex = 0; dataNodeIndex < layerSizes[0]; dataNodeIndex ++)
-            {
-                printf("%.6f ", trainingData[dataStartIndex + dataNodeIndex]);
-            }
-            printf("\n");
-            printf("(Value data below)\n");
-            for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
-            {
-                printf("[%d] ", layerIndex);
-                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-                {
-                    printf("%.6f ", nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex]);
-                }
-                printf("\n");
-            }
-            printf("(Error data below)\n");
-            for (int layerIndex = 0; layerIndex < numLayers; layerIndex ++)
-            {
-                printf("[%d] ", layerIndex);
-                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-                {
-                    printf("%.6f ", nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex]);
-                }
-                printf("\n");
-            }
         }
     }
     if (debug)
