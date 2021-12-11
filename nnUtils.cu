@@ -4,6 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -68,28 +69,17 @@ __device__ int d_listMax(int numValues, int *values)
 float *createNetwork(int numLayers, int *layerSizes)
 {
 
-    int maxLayerSize = listMax(numLayers, layerSizes);
-
-    float *weights = (float *)malloc(sizeof(float) * numLayers * maxLayerSize * (maxLayerSize + 1));
-    for (int layerIndex = 0; layerIndex < numLayers; layerIndex++)
+    int numWeights = getNumNetworkWeights(numLayers, layerSizes);
+    float *weights = (float *)malloc(sizeof(float) * numWeights);
+    int flatIndex = 0;
+    for (int layerIndex = 1; layerIndex < numLayers; layerIndex++)
     {
         for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex++)
         {
-            if (layerIndex == 0)
+            for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1] + 1; weightIndex++)
             {
-                // don't do anything because layer 0 is inputs and has no incoming weights
-            }
-            else
-            {
-                int numWeights = 1 + layerSizes[layerIndex - 1]; // +1 for bias
-                for (int weightIndex = 0; weightIndex < numWeights; weightIndex++)
-                {
-                    int index = getIndex(
-                        layerIndex, nodeIndex, weightIndex,
-                        maxLayerSize
-                    );
-                    weights[index] = 0.5f;
-                }
+                weights[flatIndex] = (float)flatIndex;
+                flatIndex ++;
             }
         }
     }
@@ -98,7 +88,6 @@ float *createNetwork(int numLayers, int *layerSizes)
 
 void printNetwork(float *weights, int numLayers, int *layerSizes)
 {
-    int maxLayerSize = listMax(numLayers, layerSizes);
     for (int layerIndex = 1; layerIndex < numLayers; layerIndex++)
     {
         printf("\n---<Layer %d>\n", layerIndex);
@@ -114,7 +103,7 @@ void printNetwork(float *weights, int numLayers, int *layerSizes)
                 {
                     int index = getIndex(
                         layerIndex, nodeIndex, weightIndex,
-                        maxLayerSize
+                        layerSizes
                     );
                     printf("%.3f, ", weights[index]);
                     if (weightIndex == numWeights - 1)
@@ -131,7 +120,6 @@ void printNetwork(float *weights, int numLayers, int *layerSizes)
 
 void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
 {
-    int maxLayerSize = listMax(numLayers, layerSizes);
     srand(time(NULL));
     for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
     {
@@ -142,7 +130,7 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
             {
                 int index = getIndex(
                     layerIndex, nodeIndex, weightIndex,
-                    maxLayerSize
+                    layerSizes
                 );
                 weights[index] = (float)((rand() % 10000 + 1 - 5000)) / 10000.0f;
             }
@@ -150,11 +138,66 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
     }
 }
 
-int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
+int getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes)
 {
-    return layerIndex * (maxLayerSize + 1) * maxLayerSize +
-        nodeIndex * (maxLayerSize + 1) +
-        weightIndex;
+    assert(layerIndex > 0);
+
+    int prevWeights = 0;
+    for (int l = 1; l < layerIndex; l++)
+    {
+        prevWeights = prevWeights + layerSizes[l] * (layerSizes[l-1] + 1);
+    }
+    return prevWeights + nodeIndex * (layerSizes[layerIndex - 1] + 1) + weightIndex;
+}
+
+int getNumNetworkWeights(int numLayers, int *layerSizes)
+{
+    int w = 0;
+    for (int l = 1; l < numLayers; l ++)
+    {
+        w = w + layerSizes[l] * (layerSizes[l - 1] + 1);
+    }
+    return w;
+}
+
+int getNumValueNodes(int numLayers, int *layerSizes)
+{
+    int numValues = 0;
+    for (int l = 0; l < numLayers; l ++)
+    {
+        numValues = numValues + layerSizes[l];
+    }
+    return numValues;
+}
+
+int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex)
+{
+    int numPrev = 0;
+    for (int l = 1; l <= layerIndex; l++)
+    {
+        numPrev = numPrev + layerSizes[l-1];
+    }
+    return numPrev + nodeIndex;
+}
+
+int getNumErrorNodes(int numLayers, int *layerSizes)
+{
+    int numErrors = 0;
+    for (int l = 1; l < numLayers; l ++) // don't count input layer because it can't have errors
+    {
+        numErrors = numErrors + layerSizes[l];
+    }
+    return numErrors;
+}
+
+int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex)
+{
+    int numPrev = 0;
+    for (int l = 2; l <= layerIndex; l++) // don't count input layer because it can't have errors
+    {
+        numPrev = numPrev + layerSizes[l-1];
+    }
+    return numPrev + nodeIndex;
 }
 
 __device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
@@ -355,26 +398,11 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate)
 {
-    int maxLayerSize = listMax(numLayers, layerSizes);
     // node delta
-    float errors[numLayers][maxLayerSize];
-    for (int i = 0; i < numLayers; i++)
-    {
-        for (int j = 0; j < maxLayerSize; j++)
-        {
-            errors[i][j] = 0;
-        }
-    }
+    float *errors = (float *)malloc(sizeof(float) * getNumErrorNodes(numLayers, layerSizes));
 
     // activation values
-    float values[numLayers][maxLayerSize];
-    for (int i = 0; i < numLayers; i++)
-    {
-        for (int j = 0; j < maxLayerSize; j++)
-        {
-            values[i][j] = 0;
-        }
-    }
+    float *values = (float *)malloc(sizeof(float) * getNumValueNodes(numLayers, layerSizes));
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
@@ -391,7 +419,7 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
             // load training sample
             for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
             {
-                values[0][nodeIndex] = trainingData[dataStartIndex + nodeIndex];
+                values[nodeIndex] = trainingData[dataStartIndex + nodeIndex];
             }
 
             // forward compute
@@ -403,14 +431,14 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                     float sum = 0;
                     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                     {
-                        float prevLayerValue = values[layerIndex - 1][weightIndex];
-                        int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        float prevLayerValue = values[getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+                        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                         sum += prevLayerValue * weights[index];
                     }
                     // add bias
-                    int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                    int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
                     sum += weights[biasIndex];
-                    values[layerIndex][nodeIndex] = activationFunction(sum);
+                    values[getValueIndex(layerSizes, layerIndex, nodeIndex)] = activationFunction(sum);
                 }
             }
             // find error of layers
@@ -421,9 +449,9 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                     if (layerIndex == numLayers - 1)
                     {
                         // special case for output layer
-                        float value = values[layerIndex][nodeIndex];
+                        float value = values[getValueIndex(layerSizes, layerIndex, nodeIndex)];
                         float actual = trueValues[trueValueStartIndex + nodeIndex];
-                        errors[layerIndex][nodeIndex] =
+                        errors[getErrorIndex(layerSizes, layerIndex, nodeIndex)] =
                             value *
                             (1 - value) *
                             (value - actual);
@@ -433,12 +461,12 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                         float sum = 0;
                         for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
                         {
-                            int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
+                            int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
                             sum += weights[index] *
-                                errors[layerIndex + 1][nextLayerNodeIndex];
+                                errors[getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
                         }
-                        float value = values[layerIndex][nodeIndex];
-                        errors[layerIndex][nodeIndex] = sum * value * (1 - value);
+                        float value = values[getValueIndex(layerSizes, layerIndex, nodeIndex)];
+                        errors[getErrorIndex(layerSizes, layerIndex, nodeIndex)] = sum * value * (1 - value);
                     }
                 }
             }
@@ -450,17 +478,17 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                 {
                     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                     {
-                        int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                         weights[index] -=
                             learnRate *
-                            errors[layerIndex][nodeIndex] *
-                            values[layerIndex - 1][weightIndex];
+                            errors[getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
+                            values[getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
                     }
                     // update bias
-                    int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                    int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
                     weights[index] -=
                         learnRate *
-                        errors[layerIndex][nodeIndex];
+                        errors[getErrorIndex(layerSizes, layerIndex, nodeIndex)];
                 }
             }
         }
@@ -470,19 +498,12 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
 float *classify(float *weights, int numLayers, int *layerSizes, float *samples, int sampleIndex)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
-    float values[numLayers][maxLayerSize];
-    for (int i = 0; i < numLayers; i++)
-    {
-        for (int j = 0; j < maxLayerSize; j++)
-        {
-            values[i][j] = 0;
-        }
-    }
+    float *values = (float *)malloc(sizeof(float) * getNumValueNodes(numLayers, layerSizes));
     int sampleOffset = layerSizes[0] * sampleIndex;
     // load input layer from provided sample
     for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
     {
-        values[0][nodeIndex] = samples[sampleOffset + nodeIndex];
+        values[nodeIndex] = samples[sampleOffset + nodeIndex];
     }
     for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
     {
@@ -491,20 +512,20 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *samples, 
             float sum = 0;
             for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
             {
-                float prevLayerValue = values[layerIndex - 1][weightIndex];
-                int index = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                float prevLayerValue = values[getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+                int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                 sum += prevLayerValue * weights[index];
             }
             // add bias
-            int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+            int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
             sum += weights[index];
-            values[layerIndex][nodeIndex] = activationFunction(sum);
+            values[getValueIndex(layerSizes, layerIndex, nodeIndex)] = activationFunction(sum);
         }
     }
     float *out = (float *)malloc(sizeof(float) * layerSizes[numLayers - 1]);
     for (int nodeIndex = 0; nodeIndex < layerSizes[numLayers - 1]; nodeIndex ++)
     {
-        out[nodeIndex] = values[numLayers - 1][nodeIndex];
+        out[nodeIndex] = values[getValueIndex(layerSizes, numLayers - 1, nodeIndex)];
     }
     return out;
 }
@@ -616,7 +637,7 @@ void batchTrainNetworkGpu(
                     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1] + 1; weightIndex ++)
                     {
                         float delta = 0;
-                        int weightFlatIndex = getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                        int weightFlatIndex = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                         for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
                         {
                             float thisDelta = scratchWeights[sampleIndex * numWeights + weightFlatIndex] - weights[weightFlatIndex];

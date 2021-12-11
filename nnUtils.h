@@ -10,7 +10,10 @@ float *createNetwork(int numLayers, int *layerSizes);
 void printNetwork(float *weights, int numLayers, int *layerSizes);
 __device__ void d_printNetwork(float *weights, int numLayers, int *layerSizes);
 
-int getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize);
+int getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes);
+
+int getNumNetworkWeights(int numLayers, int *layerSizes);
+
 __device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize);
 
 void initNetworkWeights(float *weights, int numLayers, int *layerSizes);
@@ -51,3 +54,8 @@ int imageSampleTestResult(float *trueValues, int sampleIndex, float *result);
 int imageSampleResultToInt(float *result);
 
 void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases);
+
+int getNumValueNodes(int numLayers, int *layerSizes);
+int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex);
+int getNumErrorNodes(int numLayers, int *layerSizes);
+int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex);
