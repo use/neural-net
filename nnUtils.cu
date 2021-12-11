@@ -138,7 +138,7 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
     }
 }
 
-int getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes)
+int __device__ __host__ getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes)
 {
     assert(layerIndex > 0);
 
@@ -150,7 +150,7 @@ int getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes)
     return prevWeights + nodeIndex * (layerSizes[layerIndex - 1] + 1) + weightIndex;
 }
 
-int getNumNetworkWeights(int numLayers, int *layerSizes)
+__device__ __host__ int getNumNetworkWeights(int numLayers, int *layerSizes)
 {
     int w = 0;
     for (int l = 1; l < numLayers; l ++)
@@ -160,7 +160,7 @@ int getNumNetworkWeights(int numLayers, int *layerSizes)
     return w;
 }
 
-int getNumValueNodes(int numLayers, int *layerSizes)
+__device__ __host__ int getNumValueNodes(int numLayers, int *layerSizes)
 {
     int numValues = 0;
     for (int l = 0; l < numLayers; l ++)
@@ -170,7 +170,7 @@ int getNumValueNodes(int numLayers, int *layerSizes)
     return numValues;
 }
 
-int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex)
+__device__ __host__ int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex)
 {
     int numPrev = 0;
     for (int l = 1; l <= layerIndex; l++)
@@ -180,7 +180,7 @@ int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex)
     return numPrev + nodeIndex;
 }
 
-int getNumErrorNodes(int numLayers, int *layerSizes)
+__device__ __host__ int getNumErrorNodes(int numLayers, int *layerSizes)
 {
     int numErrors = 0;
     for (int l = 1; l < numLayers; l ++) // don't count input layer because it can't have errors
@@ -190,7 +190,7 @@ int getNumErrorNodes(int numLayers, int *layerSizes)
     return numErrors;
 }
 
-int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex)
+__device__ __host__ int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex)
 {
     int numPrev = 0;
     for (int l = 2; l <= layerIndex; l++) // don't count input layer because it can't have errors
@@ -198,13 +198,6 @@ int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex)
         numPrev = numPrev + layerSizes[l-1];
     }
     return numPrev + nodeIndex;
-}
-
-__device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize)
-{
-    return layerIndex * (maxLayerSize + 1) * maxLayerSize +
-        nodeIndex * (maxLayerSize + 1) +
-        weightIndex;
 }
 
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
@@ -220,11 +213,15 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     }
 
     int debug = 0;
-    int maxLayerSize = d_listMax(numLayers, layerSizes);
-    int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
+    int numWeights = getNumNetworkWeights(numLayers, layerSizes);
+
+    int numValueNodes = getNumValueNodes(numLayers, layerSizes);
+    int numErrorNodes = getNumErrorNodes(numLayers, layerSizes);
+
     int myWeightsIndex = (blockIdx.x * blockDim.x + threadIdx.x) * numWeights;
 
-    int nodeDataOffset = numLayers * maxLayerSize * (blockIdx.x * blockDim.x + threadIdx.x);
+    int nodeDataValuesOffset = (blockIdx.x * blockDim.x + threadIdx.x) * numValueNodes;
+    int nodeDataErrorsOffset = (blockIdx.x * blockDim.x + threadIdx.x) * numErrorNodes;
 
     int dataStartIndex = dataIndex * layerSizes[0];
     int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
@@ -238,7 +235,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // load training sample
         for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
         {
-            nodeValues[nodeDataOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
+            nodeValues[nodeDataValuesOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
         }
 
         if (debug)
@@ -254,14 +251,14 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 float sum = 0;
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
-                    float prevLayerValue = nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
-                    int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                    float prevLayerValue = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+                    int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                     sum += prevLayerValue * scratchWeights[myWeightsIndex + index];
                 }
                 // add bias
-                int biasIndex = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
                 sum += scratchWeights[myWeightsIndex + biasIndex];
-                nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = d_activationFunction(sum);
+                nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
             }
         }
         // find error of layers
@@ -272,9 +269,9 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 if (layerIndex == numLayers - 1)
                 {
                     // special case for output layer
-                    float value = nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
+                    float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
                     float actual = trueValues[trueValueStartIndex + nodeIndex];
-                    nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] =
+                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] =
                         value *
                         (1 - value) *
                         (value - actual);
@@ -284,12 +281,12 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                     float sum = 0;
                     for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
                     {
-                        int index = d_getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, maxLayerSize);
+                        int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
                         sum += scratchWeights[myWeightsIndex + index] *
-                            nodeErrors[nodeDataOffset + (layerIndex + 1) * maxLayerSize + nextLayerNodeIndex];
+                            nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
                     }
-                    float value = nodeValues[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
-                    nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] = sum * value * (1 - value);
+                    float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
+                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] = sum * value * (1 - value);
                 }
             }
         }
@@ -304,17 +301,17 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
             {
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
-                    int index = d_getIndex(layerIndex, nodeIndex, weightIndex, maxLayerSize);
+                    int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                     scratchWeights[myWeightsIndex + index] -=
                         learnRate *
-                        nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex] *
-                        nodeValues[nodeDataOffset + (layerIndex - 1) * maxLayerSize + weightIndex];
+                        nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
+                        nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
                 }
                 // update bias
-                int index = d_getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], maxLayerSize);
+                int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
                 scratchWeights[myWeightsIndex + index] -=
                     learnRate *
-                    nodeErrors[nodeDataOffset + layerIndex * maxLayerSize + nodeIndex];
+                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)];
             }
         }
         if (debug)
@@ -480,8 +477,7 @@ void batchTrainNetworkGpu(
     float *trueValues, float learnRate, int batchSize,
     int numEpochs, imageTrainingSamples *testCases)
 {
-    int maxLayerSize = listMax(numLayers, layerSizes);
-    int numWeights = numLayers * maxLayerSize * (maxLayerSize + 1);
+    int numWeights = getNumNetworkWeights(numLayers, layerSizes);
     float *weightDeltas = (float *) malloc(sizeof(float) * numWeights);
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
@@ -509,8 +505,8 @@ void batchTrainNetworkGpu(
     cudaMalloc(&d_trainData, sizeof(float) * batchSize * inDataWidth);
     cudaMalloc(&d_trueValues, sizeof(float) * batchSize * layerSizes[numLayers - 1]);
     cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
-    cudaMalloc(&d_nodeErrors, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
-    cudaMalloc(&d_nodeValues, sizeof(float) * numLayers * maxLayerSize * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_nodeErrors, sizeof(float) * getNumErrorNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
     cudaMalloc(&d_scratchWeights, sizeof(float) * batchSize * numWeights);
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);

@@ -14,8 +14,6 @@ int getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes);
 
 int getNumNetworkWeights(int numLayers, int *layerSizes);
 
-__device__ int d_getIndex(int layerIndex, int nodeIndex, int weightIndex, int maxLayerSize);
-
 void initNetworkWeights(float *weights, int numLayers, int *layerSizes);
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
