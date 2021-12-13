@@ -319,6 +319,13 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
             printf("finished updating weights\n");
         }
     }
+
+    // calculate deltas for this sample
+    for (int w = 0; w < numWeights; w ++)
+    {
+        scratchWeights[myWeightsIndex + w] = scratchWeights[myWeightsIndex + w] - weights[w];
+    }
+
     if (debug)
     {
         printf("finished internal iterations\n");
@@ -570,8 +577,7 @@ void batchTrainNetworkGpu(
                         int weightFlatIndex = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
                         for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
                         {
-                            float thisDelta = scratchWeights[sampleIndex * numWeights + weightFlatIndex] - weights[weightFlatIndex];
-                            delta += thisDelta;
+                            delta += scratchWeights[sampleIndex * numWeights + weightFlatIndex];
                         }
                         weights[weightFlatIndex] += delta;
                     }
