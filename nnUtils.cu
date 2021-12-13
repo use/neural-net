@@ -5,6 +5,7 @@
 #include <math.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -318,14 +319,16 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
                 {
                     int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
-                    scratchWeights[myWeightsIndex + index] -=
+                    scratchWeights[myWeightsIndex + index] =
+                        -1 *
                         learnRate *
                         nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
                         nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
                 }
                 // update bias
                 int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
-                scratchWeights[myWeightsIndex + index] -=
+                scratchWeights[myWeightsIndex + index] =
+                    -1 *
                     learnRate *
                     nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)];
             }
@@ -337,10 +340,10 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     }
 
     // calculate deltas for this sample
-    for (int w = 0; w < numWeights; w ++)
-    {
-        scratchWeights[myWeightsIndex + w] = scratchWeights[myWeightsIndex + w] - weights[w];
-    }
+    // for (int w = 0; w < numWeights; w ++)
+    // {
+    //     scratchWeights[myWeightsIndex + w] = scratchWeights[myWeightsIndex + w] - weights[w];
+    // }
 
     if (debug)
     {
@@ -534,11 +537,28 @@ void batchTrainNetworkGpu(
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
 
+    cudaEvent_t globalStart, globalStop, start, stop;
+    cudaEventCreate(&globalStart);
+    cudaEventCreate(&globalStop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    bool showMetrics = true;
+    float msGlobal = 0;
+    float msTemp = 0;
+    float msMemorySetup = 0;
+    float msTraining = 0;
+    float msSumming = 0;
+    float msTesting = 0;
+    struct timeval t1;
+    struct timeval t2;
+
+    cudaEventRecord(globalStart);
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex++)
     {
 
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
+            cudaEventRecord(start);
             cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
             int trainDataStartIndex = batchNumber * batchSize * inDataWidth;
@@ -568,17 +588,32 @@ void batchTrainNetworkGpu(
             {
                 printf("done copying scratch weights\n");
             }
+            cudaEventRecord(stop);
+            cudaDeviceSynchronize();
+            cudaEventElapsedTime(&msTemp, start, stop);
+            msMemorySetup += msTemp;
+
+            cudaEventRecord(start);
             trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
                 d_trueValues, learnRate, d_weightDeltas,
                 d_nodeErrors, d_nodeValues, d_scratchWeights
             );
+            cudaEventRecord(stop);
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
 
+            cudaEventElapsedTime(&msTemp, start, stop);
+            msTraining += msTemp;
+
+            cudaEventRecord(start);
             // add up the weight delta vectors
             sumVectors<<<1, 1024>>>(d_scratchWeights, thisBatchNumSamples, numWeights);
+            cudaEventRecord(stop);
+            cudaDeviceSynchronize();
+            cudaEventElapsedTime(&msTemp, start, stop);
+            msSumming += msTemp;
 
             cudaMemcpy(scratchWeights, d_scratchWeights, numWeights * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -608,8 +643,34 @@ void batchTrainNetworkGpu(
         printf("finished epoch %d\n", epochIndex);
         if (testCases)
         {
+            gettimeofday(&t1, NULL);
             testNetwork(weights, numLayers, layerSizes, testCases);
+            gettimeofday(&t2, NULL);
+            msTesting +=
+                (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
+                (t1.tv_sec * 1000 + t1.tv_usec / 1000);
         }
+    }
+
+    cudaEventRecord(globalStop);
+    cudaEventSynchronize(globalStop);
+    cudaEventElapsedTime(&msGlobal, globalStart, globalStop);
+
+
+    if (showMetrics)
+    {
+        printf("msGlobal: %.0f\n", msGlobal);
+        printf("msMemorySetup: %.0f (%.1f)\n", msMemorySetup, 100 * msMemorySetup / msGlobal);
+        printf("msTraining: %.0f (%.1f)\n", msTraining, 100 * msTraining / msGlobal);
+        printf("msSumming: %.0f (%.1f)\n", msSumming, 100 * msSumming / msGlobal);
+        printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
+        float totalAccountedFor =
+            msTraining +
+            msMemorySetup +
+            msSumming +
+            msTesting
+        ;
+        printf("Total Accounted For: %.0f (%.1f)\n", totalAccountedFor, 100 * totalAccountedFor / msGlobal);
     }
 }
 
