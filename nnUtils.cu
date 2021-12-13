@@ -200,6 +200,22 @@ __device__ __host__ int getErrorIndex(int *layerSizes, int layerIndex, int nodeI
     return numPrev + nodeIndex;
 }
 
+__global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
+{
+    // this is optimized to handle a relatively small amount of large vectors
+    // like 64 vectors that are 17000 long
+    // if we use ~1000 threads, the number of adds it takes should be like 64 * 17 in the above example
+    // each thread handles one index of the vectors, summing the value of all vectors at that index
+    // all other vectors will be summed into the vector starting at index 0
+    for (int indexInVector = threadIdx.x; indexInVector < vectorLength; indexInVector += blockDim.x)
+    {
+        for (int vectorNumber = 1; vectorNumber < numVectors; vectorNumber ++)
+        {
+            vectors[indexInVector] += vectors[vectorNumber * vectorLength + indexInVector];
+        }
+    }
+}
+
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
@@ -489,7 +505,7 @@ void batchTrainNetworkGpu(
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
 
-    int threadsPerBlock = 8;
+    int threadsPerBlock = 512;
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
@@ -561,27 +577,18 @@ void batchTrainNetworkGpu(
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
 
-            cudaMemcpy(scratchWeights, d_scratchWeights, thisBatchNumSamples * numWeights * sizeof(float), cudaMemcpyDeviceToHost);
+            // add up the weight delta vectors
+            sumVectors<<<1, 1024>>>(d_scratchWeights, thisBatchNumSamples, numWeights);
+
+            cudaMemcpy(scratchWeights, d_scratchWeights, numWeights * sizeof(float), cudaMemcpyDeviceToHost);
 
             if (debug)
             {
                 printf("start adding deltas\n");
             }
-            for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
+            for (int w = 0; w < numWeights; w ++)
             {
-                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-                {
-                    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1] + 1; weightIndex ++)
-                    {
-                        float delta = 0;
-                        int weightFlatIndex = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
-                        for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
-                        {
-                            delta += scratchWeights[sampleIndex * numWeights + weightFlatIndex];
-                        }
-                        weights[weightFlatIndex] += delta;
-                    }
-                }
+                weights[w] += scratchWeights[w];
             }
             if (debug)
             {

@@ -11,6 +11,7 @@ void testGetValueIndex();
 void testGetNumErrorNodes();
 void testGetErrorIndex();
 void testCreateNetwork();
+void testSumVectors();
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +22,7 @@ int main(int argc, char *argv[])
     testGetNumErrorNodes();
     testGetErrorIndex();
     testCreateNetwork();
+    testSumVectors();
 
     printf("All assertions passed.");
 }
@@ -93,4 +95,33 @@ void testCreateNetwork()
     int layerSizes2[] = {558, 85, 238, 12};
     float *net2 = createNetwork(4, layerSizes2);
     assert(net2[52134] == 52134);
+}
+
+void testSumVectors()
+{
+    float h_list_1[] = {
+        1, 2, 3, 4, 5,
+        6, 7, 8, 9, 10,
+        11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20,
+        21, 22, 23, 24, 25,
+        // 1, 1, 1, 1, 1
+    };
+    float correct[] = {
+        55, 60, 65, 70, 75
+    };
+    int totalLength = sizeof(h_list_1) / sizeof(h_list_1[0]);
+    int vectorLength = 5;
+    int numVectors = totalLength / vectorLength;
+    float *d_list_1;
+
+    cudaMalloc(&d_list_1, sizeof(h_list_1));
+    cudaMemcpy(d_list_1, h_list_1, sizeof(h_list_1), cudaMemcpyHostToDevice);
+    sumVectors<<<1, 3>>>(d_list_1, 5, 5);
+    cudaMemcpy(h_list_1, d_list_1, sizeof(h_list_1), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < vectorLength; i ++)
+    {
+        assert(h_list_1[i] == correct[i]);
+    }
 }
