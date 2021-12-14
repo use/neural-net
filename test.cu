@@ -105,14 +105,12 @@ void testSumVectors()
         11, 12, 13, 14, 15,
         16, 17, 18, 19, 20,
         21, 22, 23, 24, 25,
-        // 1, 1, 1, 1, 1
     };
     float correct[] = {
         55, 60, 65, 70, 75
     };
     int totalLength = sizeof(h_list_1) / sizeof(h_list_1[0]);
     int vectorLength = 5;
-    int numVectors = totalLength / vectorLength;
     float *d_list_1;
 
     cudaMalloc(&d_list_1, sizeof(h_list_1));
