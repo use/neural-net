@@ -217,6 +217,81 @@ __global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
     }
 }
 
+__global__ void updateNodeValues(
+    int myWeightsIndex, int nodeDataValuesOffset,
+    float *scratchWeights, float *nodeValues,
+    int *layerSizes, int layerIndex
+)
+{
+    int nodeIndex = threadIdx.x;
+    float sum = 0;
+    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
+    {
+        float prevLayerValue = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
+        sum += prevLayerValue * scratchWeights[myWeightsIndex + index];
+    }
+    // add bias
+    int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
+    sum += scratchWeights[myWeightsIndex + biasIndex];
+    nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
+}
+
+__global__ void updateNodeErrors(
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
+    float *scratchWeights, float *nodeValues, float *nodeErrors, float *trueValues,
+    int *layerSizes, int numLayers, int layerIndex
+)
+{
+    int nodeIndex = threadIdx.x;
+    if (layerIndex == numLayers - 1)
+    {
+        // special case for output layer
+        float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
+        float actual = trueValues[trueValueStartIndex + nodeIndex];
+        nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] =
+            value *
+            (1 - value) *
+            (value - actual);
+    }
+    else
+    {
+        float sum = 0;
+        for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
+        {
+            int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
+            sum += scratchWeights[myWeightsIndex + index] *
+                nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
+        }
+        float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
+        nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] = sum * value * (1 - value);
+    }
+}
+
+__global__ void updateWeights(
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
+    float *scratchWeights, float *nodeValues, float *nodeErrors,
+    int *layerSizes, int layerIndex, float learnRate
+)
+{
+    int nodeIndex = threadIdx.x;
+    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
+    {
+        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
+        scratchWeights[myWeightsIndex + index] =
+            -1 *
+            learnRate *
+            nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
+            nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+    }
+    // update bias
+    int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
+    scratchWeights[myWeightsIndex + index] =
+        -1 *
+        learnRate *
+        nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)];
+}
+
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate, float *weightDeltas,
@@ -263,49 +338,20 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // start with first hidden layer
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
-            for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-            {
-                float sum = 0;
-                for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
-                {
-                    float prevLayerValue = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
-                    int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
-                    sum += prevLayerValue * scratchWeights[myWeightsIndex + index];
-                }
-                // add bias
-                int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
-                sum += scratchWeights[myWeightsIndex + biasIndex];
-                nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
-            }
+            updateNodeValues<<<1, layerSizes[layerIndex]>>>(
+                myWeightsIndex, nodeDataValuesOffset,
+                scratchWeights, nodeValues,
+                layerSizes, layerIndex
+            );
         }
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
-            for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-            {
-                if (layerIndex == numLayers - 1)
-                {
-                    // special case for output layer
-                    float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
-                    float actual = trueValues[trueValueStartIndex + nodeIndex];
-                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] =
-                        value *
-                        (1 - value) *
-                        (value - actual);
-                }
-                else
-                {
-                    float sum = 0;
-                    for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
-                    {
-                        int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
-                        sum += scratchWeights[myWeightsIndex + index] *
-                            nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
-                    }
-                    float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
-                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] = sum * value * (1 - value);
-                }
-            }
+            updateNodeErrors<<<1, layerSizes[layerIndex]>>>(
+                myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
+                scratchWeights, nodeValues, nodeErrors, trueValues,
+                layerSizes, numLayers, layerIndex
+            );
         }
         if (debug)
         {
@@ -314,24 +360,11 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // update weights
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
-            for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
-            {
-                for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
-                {
-                    int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
-                    scratchWeights[myWeightsIndex + index] =
-                        -1 *
-                        learnRate *
-                        nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
-                        nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
-                }
-                // update bias
-                int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
-                scratchWeights[myWeightsIndex + index] =
-                    -1 *
-                    learnRate *
-                    nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)];
-            }
+            updateWeights<<<1, layerSizes[layerIndex]>>>(
+                myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset,
+                scratchWeights, nodeValues, nodeErrors,
+                layerSizes, layerIndex, learnRate
+            );
         }
         if (debug)
         {

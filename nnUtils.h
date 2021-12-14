@@ -26,6 +26,24 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *d_nodeErrors, float *d_nodeValues, float *scratchWeights
 );
 
+__global__ void updateNodeValues(
+    int myWeightsIndex, int nodeDataValuesOffset,
+    float *scratchWeights, float *nodeValues,
+    int *layerSizes, int layerIndex
+);
+
+__global__ void updateNodeErrors(
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
+    float *scratchWeights, float *nodeValues, float *nodeErrors, float *trueValues,
+    int *layerSizes, int numLayers, int layerIndex
+);
+
+__global__ void updateWeights(
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
+    float *scratchWeights, float *nodeValues, float *nodeErrors,
+    int *layerSizes, int layerIndex, float learnRate
+);
+
 __global__ void sumVectors(float *vectors, int numVectors, int vectorLength);
 
 void batchTrainNetworkGpu(
