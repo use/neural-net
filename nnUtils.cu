@@ -506,6 +506,7 @@ float *classify(float *weights, int numLayers, int *layerSizes, float *samples, 
     {
         out[nodeIndex] = values[getValueIndex(layerSizes, numLayers - 1, nodeIndex)];
     }
+    free(values);
     return out;
 }
 

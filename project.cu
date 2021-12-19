@@ -13,6 +13,7 @@ void testImageDataParsing();
 void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate);
 void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate);
 void testImageSampleTestResult();
+void freeImageTrainingSamples(imageTrainingSamples *samples);
 void usage();
 
 int numNeuronsDefault = 20;
@@ -193,8 +194,16 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
     }
 
     free(weights);
+
+    freeImageTrainingSamples(samples);
+    freeImageTrainingSamples(testCases);
+}
+
+void freeImageTrainingSamples(imageTrainingSamples *samples)
+{
+    free(samples->inputSamples);
+    free(samples->trueOutput);
     free(samples);
-    free(testCases);
 }
 
 void testImageSampleTestResult()
