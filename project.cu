@@ -10,8 +10,8 @@ void testAndFunctionGpu();
 void testTonyFunction();
 void testTonyFunctionGpu();
 void testImageDataParsing();
-void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize);
-void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs);
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate);
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate);
 void testImageSampleTestResult();
 void usage();
 
@@ -20,6 +20,7 @@ int numSamplesDefault = 10000;
 int numTestCasesDefault = 1000;
 int numEpochsDefault = 1;
 int batchSizeDefault = 64;
+float learnRateDefault = .05;
 
 int main(int argc, char *argv[])
 {
@@ -31,9 +32,10 @@ int main(int argc, char *argv[])
     int numTestCases = numTestCasesDefault;
     int numEpochs = numEpochsDefault;
     int batchSize = batchSizeDefault;
+    float learnRate = learnRateDefault;
     char type = 'g';
 
-    while ((opt = getopt(argc, argv, "n:t:v:e:b:")) != -1)
+    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:")) != -1)
     {
         switch (opt)
         {
@@ -52,6 +54,9 @@ int main(int argc, char *argv[])
             case 'b':
                 batchSize = atoi(optarg);
                 break;
+            case 'l':
+                learnRate = (float)atof(optarg);
+                break;
             default:
                 usage();
         }
@@ -63,7 +68,8 @@ int main(int argc, char *argv[])
         numSamples < 1 ||
         numTestCases < 1 ||
         numEpochs < 1 ||
-        batchSize < 1
+        batchSize < 1 ||
+        learnRate > 1 || learnRate <= 0
     )
     {
         usage();
@@ -84,17 +90,18 @@ int main(int argc, char *argv[])
     printf("Training Samples: %d\n", numSamples);
     printf("Test Cases: %d\n", numTestCases);
     printf("Epochs: %d\n", numEpochs);
+    printf("Learning Rate: %f\n", learnRate);
 
     if (type == 'g')
     {
         printf("Batch Size: %d\n", batchSize);
         printf("Training with GPU\n");
-        testImageTrainingGpu(numNeurons, numSamples, numTestCases, numEpochs, batchSize);
+        testImageTrainingGpu(numNeurons, numSamples, numTestCases, numEpochs, batchSize, learnRate);
     }
     else if (type == 'c')
     {
         printf("Training with CPU\n");
-        testImageTraining(numNeurons, numSamples, numTestCases, numEpochs);
+        testImageTraining(numNeurons, numSamples, numTestCases, numEpochs, learnRate);
     }
 
     // these features were used during development but not really used now
@@ -118,6 +125,8 @@ void usage()
         numTestCasesDefault);
     printf("  -e <number> Run <number> epochs (default %d)\n",
         numEpochsDefault);
+    printf("  -l <number> Learning rate (default %f)\n",
+        learnRateDefault);
     printf("  -b <number> Use <number> batch size (default %d) (\"gpu\" only)\n",
         batchSizeDefault);
     printf("Program defaults:\n");
@@ -125,12 +134,13 @@ void usage()
     printf("  Training Samples: %d\n", numSamplesDefault);
     printf("  Test Cases: %d\n", numTestCasesDefault);
     printf("  Epochs: %d\n", numEpochsDefault);
+    printf("  Learning Rate: %f\n", learnRateDefault);
     printf("  Batch Size: %d\n", batchSizeDefault);
 
     exit(EXIT_FAILURE);
 }
 
-void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs)
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate)
 {
     int numLayers = 3;
     int layerSizes[3] = {28 * 28, numHidden, 10};
@@ -150,7 +160,7 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
         trainNetwork(
             weights, numLayers, layerSizes,
             samples->inputSamples, numSamples,
-            1, samples->trueOutput, .1
+            1, samples->trueOutput, learnRate
         );
 
         printf("Done training epoch %d\n", epochIndex);
@@ -216,7 +226,7 @@ void testImageSampleTestResult()
     assert(0 == imageSampleTestResult(trueValues, 2, result4));
 }
 
-void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize)
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate)
 {
     int numLayers = 3;
     int layerSizes[3] = {28 * 28, numHidden, 10};
@@ -235,7 +245,7 @@ void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int n
     batchTrainNetworkGpu(
         weights, numLayers, layerSizes,
         samples->inputSamples, numSamples, internalIterations,
-        samples->trueOutput, .05, batchSize,
+        samples->trueOutput, learnRate, batchSize,
         numEpochs, testCases
     );
     printf("Done training\n");
