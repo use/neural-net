@@ -698,6 +698,9 @@ void batchTrainNetworkGpu(
         ;
         printf("Total Accounted For: %.0f (%.1f)\n", totalAccountedFor, 100 * totalAccountedFor / msGlobal);
     }
+
+    free(weightDeltas);
+    free(scratchWeights);
 }
 
 imageTrainingSamples *getImageData(char *filename, int numItems, int startingIndex)

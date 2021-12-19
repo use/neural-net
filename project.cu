@@ -258,6 +258,10 @@ void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int n
         samples->trueOutput, learnRate, batchSize,
         numEpochs, testCases
     );
+
+    free(weights);
+    freeImageTrainingSamples(samples);
+    freeImageTrainingSamples(testCases);
     printf("Done training\n");
 
     // printNetwork(weights, numLayers, layerSizes);
