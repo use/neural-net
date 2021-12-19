@@ -858,6 +858,7 @@ void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSa
         int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
         float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
         int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
+        free(result);
         // printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
         for (int i = 0; i < layerSizes[numLayers - 1]; i++)
         {
