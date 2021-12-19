@@ -472,6 +472,9 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
             }
         }
     }
+
+    free(errors);
+    free(values);
 }
 
 float *classify(float *weights, int numLayers, int *layerSizes, float *samples, int sampleIndex)
