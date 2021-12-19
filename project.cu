@@ -166,32 +166,7 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
 
         printf("Done training epoch %d\n", epochIndex);
 
-        int numCorrect = 0;
-        for (int testCaseIndex = 0; testCaseIndex < numTestCases; testCaseIndex ++)
-        {
-            int trueValue = imageSampleTrueValue(testCases->trueOutput, testCaseIndex);
-            float *result = classify(weights, numLayers, layerSizes, testCases->inputSamples, testCaseIndex);
-            int isCorrect = imageSampleTestResult(testCases->trueOutput, testCaseIndex, result);
-            free(result);
-            // printf("Actual / Result: %d / %d ", trueValue, imageSampleResultToInt(result));
-            for (int i = 0; i < layerSizes[numLayers - 1]; i++)
-            {
-                // printf("%.3f ", result[i]);
-            }
-            if (isCorrect)
-            {
-                numCorrect ++;
-                // printf("Correct");
-            }
-            else
-            {
-                // printf("NOPE");
-            }
-            // printf("\n");
-        }
-
-        printf("Accuracy: %.2f\n", (float)numCorrect / (float) numTestCases);
-        // printNetwork(weights, numLayers, layerSizes);
+        testNetwork(weights, numLayers, layerSizes, testCases);
     }
 
     free(weights);
