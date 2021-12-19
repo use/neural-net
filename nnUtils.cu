@@ -757,7 +757,7 @@ imageTrainingSamples *getImageData(char *filename, int numItems, int startingInd
 
         // now get the inputs - pixels with value from 0-255
         int tokenIndex = 0;
-        while (token != NULL)
+        while (token != NULL && tokenIndex < 28 * 28)
         {
             float rawValue = (float)strtol(token, NULL, 10);
             samples->inputSamples[numItemsTaken * numInputNodes + tokenIndex] = rawValue / (float)255;
