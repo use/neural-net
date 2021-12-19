@@ -109,7 +109,6 @@ void testSumVectors()
     float correct[] = {
         55, 60, 65, 70, 75
     };
-    int totalLength = sizeof(h_list_1) / sizeof(h_list_1[0]);
     int vectorLength = 5;
     float *d_list_1;
 
