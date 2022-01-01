@@ -17,7 +17,7 @@ The network can be configured to run with multiple layers but only one seems to 
   * CUDA libraries and nvcc compiler
   * Get some data from https://www.kaggle.com/oddrationale/mnist-in-csv and put it in ./data/
 
-## Compilation
+## Compile
 
 ```make clean && make```
 
