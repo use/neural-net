@@ -573,6 +573,7 @@ void batchTrainNetworkGpu(
     float msTemp = 0;
     float msMemorySetup = 0;
     float msTraining = 0;
+    float msAllTraining = 0;
     float msSumming = 0;
     float msTesting = 0;
     struct timeval t1;
@@ -581,6 +582,8 @@ void batchTrainNetworkGpu(
     cudaEventRecord(globalStart);
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex++)
     {
+
+        gettimeofday(&t1, NULL);
 
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
@@ -666,6 +669,12 @@ void batchTrainNetworkGpu(
                     batchNumber, numBatches);
             }
         }
+
+        gettimeofday(&t2, NULL);
+        msAllTraining +=
+            (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
+            (t1.tv_sec * 1000 + t1.tv_usec / 1000);
+
         printf("finished epoch %d\n", epochIndex);
         if (testCases)
         {
@@ -690,6 +699,7 @@ void batchTrainNetworkGpu(
         printf("msTraining: %.0f (%.1f)\n", msTraining, 100 * msTraining / msGlobal);
         printf("msSumming: %.0f (%.1f)\n", msSumming, 100 * msSumming / msGlobal);
         printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
+        printf("msAllTraining: %.0f (%.1f)\n", msAllTraining, 100 * msAllTraining / msGlobal);
         float totalAccountedFor =
             msTraining +
             msMemorySetup +
