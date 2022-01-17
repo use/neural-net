@@ -574,6 +574,7 @@ void batchTrainNetworkGpu(
     float msTraining = 0;
     float msAllTraining = 0;
     float msSumming = 0;
+    float msWeightUpdates = 0;
     float msTesting = 0;
     struct timeval t1;
     struct timeval t2;
@@ -637,10 +638,21 @@ void batchTrainNetworkGpu(
             {
                 printf("start adding deltas\n");
             }
+
+            struct timeval t1_weightUpdates;
+            struct timeval t2_weightUpdates;
+            gettimeofday(&t1_weightUpdates, NULL);
+
             for (int w = 0; w < numWeights; w ++)
             {
                 weights[w] += scratchWeights[w];
             }
+
+            gettimeofday(&t2_weightUpdates, NULL);
+            msWeightUpdates +=
+                (t2_weightUpdates.tv_sec * 1000 + t2_weightUpdates.tv_usec / 1000) -
+                (t1_weightUpdates.tv_sec * 1000 + t1_weightUpdates.tv_usec / 1000);
+
             if (debug)
             {
                 printf("done adding deltas\n");
@@ -682,13 +694,15 @@ void batchTrainNetworkGpu(
         printf("msMemorySetup: %.0f (%.1f)\n", msMemorySetup, 100 * msMemorySetup / msGlobal);
         printf("msTraining: %.0f (%.1f)\n", msTraining, 100 * msTraining / msGlobal);
         printf("msSumming: %.0f (%.1f)\n", msSumming, 100 * msSumming / msGlobal);
+        printf("msWeightUpdates: %.0f (%.1f)\n", msWeightUpdates, 100 * msWeightUpdates / msGlobal);
         printf("msAllTraining: %.0f (%.1f)\n", msAllTraining, 100 * msAllTraining / msGlobal);
         printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
         float totalAccountedFor =
             msTraining +
             msMemorySetup +
             msSumming +
-            msTesting
+            msTesting +
+            msWeightUpdates
         ;
         printf("Total Accounted For: %.0f (%.1f)\n", totalAccountedFor, 100 * totalAccountedFor / msGlobal);
     }
