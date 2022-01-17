@@ -284,7 +284,7 @@ __global__ void updateWeights(
 
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
-    int numIterations, float *trueValues, float learnRate, float *weightDeltas,
+    int numIterations, float *trueValues, float learnRate,
     float *nodeErrors, float *nodeValues, float *scratchWeights)
 {
 
@@ -531,7 +531,6 @@ void batchTrainNetworkGpu(
     int numEpochs, imageTrainingSamples *testCases)
 {
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
-    float *weightDeltas = (float *) malloc(sizeof(float) * numWeights);
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
 
@@ -542,7 +541,6 @@ void batchTrainNetworkGpu(
     int *d_layerSizes = 0;
     float *d_trainData = 0;
     float *d_trueValues = 0;
-    float *d_weightDeltas = 0;
     float *d_nodeErrors = 0;
     float *d_nodeValues = 0;
     float *d_scratchWeights = 0;
@@ -558,7 +556,6 @@ void batchTrainNetworkGpu(
     cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
     cudaMalloc(&d_trainData, sizeof(float) * batchSize * inDataWidth);
     cudaMalloc(&d_trueValues, sizeof(float) * batchSize * layerSizes[numLayers - 1]);
-    cudaMalloc(&d_weightDeltas, sizeof(float) * numWeights);
     cudaMalloc(&d_nodeErrors, sizeof(float) * getNumErrorNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
     cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
     cudaMalloc(&d_scratchWeights, sizeof(float) * batchSize * numWeights);
@@ -616,7 +613,7 @@ void batchTrainNetworkGpu(
             trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
-                d_trueValues, learnRate, d_weightDeltas,
+                d_trueValues, learnRate,
                 d_nodeErrors, d_nodeValues, d_scratchWeights
             );
             cudaEventRecord(stop);
@@ -648,10 +645,7 @@ void batchTrainNetworkGpu(
             {
                 printf("done adding deltas\n");
             }
-            for (int i = 0; i < numWeights; i++)
-            {
-                weightDeltas[i] = 0;
-            }
+
             if (1 || debug)
             {
                 printf("Finished epoch %d / %d, batch %d / %d\n",
@@ -699,7 +693,6 @@ void batchTrainNetworkGpu(
         printf("Total Accounted For: %.0f (%.1f)\n", totalAccountedFor, 100 * totalAccountedFor / msGlobal);
     }
 
-    free(weightDeltas);
     free(scratchWeights);
 }
 
