@@ -208,7 +208,7 @@ __global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
 
 __global__ void updateNodeValues(
     int myWeightsIndex, int nodeDataValuesOffset,
-    float *scratchWeights, float *nodeValues,
+    float *initialWeights, float *nodeValues,
     int *layerSizes, int layerIndex
 )
 {
@@ -218,17 +218,17 @@ __global__ void updateNodeValues(
     {
         float prevLayerValue = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
         int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
-        sum += prevLayerValue * scratchWeights[myWeightsIndex + index];
+        sum += prevLayerValue * initialWeights[index];
     }
     // add bias
     int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
-    sum += scratchWeights[myWeightsIndex + biasIndex];
+    sum += initialWeights[biasIndex];
     nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
 }
 
 __global__ void updateNodeErrors(
     int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
-    float *scratchWeights, float *nodeValues, float *nodeErrors, float *trueValues,
+    float *initialWeights, float *nodeValues, float *nodeErrors, float *trueValues,
     int *layerSizes, int numLayers, int layerIndex
 )
 {
@@ -249,7 +249,7 @@ __global__ void updateNodeErrors(
         for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
         {
             int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
-            sum += scratchWeights[myWeightsIndex + index] *
+            sum += initialWeights[index] *
                 nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
         }
         float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
@@ -329,7 +329,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         {
             updateNodeValues<<<1, layerSizes[layerIndex]>>>(
                 myWeightsIndex, nodeDataValuesOffset,
-                scratchWeights, nodeValues,
+                weights, nodeValues,
                 layerSizes, layerIndex
             );
         }
@@ -338,7 +338,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         {
             updateNodeErrors<<<1, layerSizes[layerIndex]>>>(
                 myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
-                scratchWeights, nodeValues, nodeErrors, trueValues,
+                weights, nodeValues, nodeErrors, trueValues,
                 layerSizes, numLayers, layerIndex
             );
         }
@@ -606,18 +606,6 @@ void batchTrainNetworkGpu(
             cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
             cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
 
-            if (debug)
-            {
-                printf("start copying scratch weights\n");
-            }
-            for (int sampleIndex = 0; sampleIndex < thisBatchNumSamples; sampleIndex ++)
-            {
-                cudaMemcpy(d_scratchWeights + sampleIndex * numWeights, d_weights, numWeights * sizeof(float), cudaMemcpyDeviceToDevice);
-            }
-            if (debug)
-            {
-                printf("done copying scratch weights\n");
-            }
             cudaEventRecord(stop);
             cudaDeviceSynchronize();
             cudaEventElapsedTime(&msTemp, start, stop);
