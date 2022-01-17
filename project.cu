@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 void testAndFunction();
 void testAndFunctionGpu();
@@ -156,18 +157,31 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
     char testFilePath[] = "data/mnist_test.csv";
     imageTrainingSamples *testCases = getImageData(testFilePath, numTestCases, 0);
 
+    struct timeval t1;
+    struct timeval t2;
+    float msAllTraining = 0;
+
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex ++)
     {
+        gettimeofday(&t1, NULL);
+
         trainNetwork(
             weights, numLayers, layerSizes,
             samples->inputSamples, numSamples,
             1, samples->trueOutput, learnRate
         );
 
+        gettimeofday(&t2, NULL);
+        msAllTraining +=
+            (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
+            (t1.tv_sec * 1000 + t1.tv_usec / 1000);
+
         printf("Done training epoch %d\n", epochIndex);
 
         testNetwork(weights, numLayers, layerSizes, testCases);
     }
+
+    printf("msAllTraining: %.0f\n", msAllTraining);
 
     free(weights);
 
