@@ -687,8 +687,8 @@ void batchTrainNetworkGpu(
         printf("msMemorySetup: %.0f (%.1f)\n", msMemorySetup, 100 * msMemorySetup / msGlobal);
         printf("msTraining: %.0f (%.1f)\n", msTraining, 100 * msTraining / msGlobal);
         printf("msSumming: %.0f (%.1f)\n", msSumming, 100 * msSumming / msGlobal);
-        printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
         printf("msAllTraining: %.0f (%.1f)\n", msAllTraining, 100 * msAllTraining / msGlobal);
+        printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
         float totalAccountedFor =
             msTraining +
             msMemorySetup +
