@@ -534,7 +534,8 @@ void batchTrainNetworkGpu(
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
 
-    int threadsPerBlock = 512;
+    // higher threadsPerBlock causes worse performance with how the code works right now
+    int threadsPerBlock = 1;
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
