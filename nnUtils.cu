@@ -130,8 +130,6 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes)
 
 int __device__ __host__ getIndex(int layerIndex, int nodeIndex, int weightIndex, int *layerSizes)
 {
-    assert(layerIndex > 0);
-
     int prevWeights = 0;
     for (int l = 1; l < layerIndex; l++)
     {
