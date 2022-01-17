@@ -213,11 +213,14 @@ __global__ void updateNodeValues(
 {
     int nodeIndex = threadIdx.x;
     float sum = 0;
+    int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
+    int valueIndex = getValueIndex(layerSizes, layerIndex - 1, 0);
     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
     {
-        float prevLayerValue = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
-        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
+        float prevLayerValue = nodeValues[nodeDataValuesOffset + valueIndex];
         sum += prevLayerValue * initialWeights[index];
+        index += 1;
+        valueIndex += 1;
     }
     // add bias
     int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
@@ -245,11 +248,14 @@ __global__ void updateNodeErrors(
     else
     {
         float sum = 0;
+        int index = getIndex(layerIndex + 1, 0, nodeIndex, layerSizes);
+        int errorIndex = getErrorIndex(layerSizes, layerIndex + 1, 0);
         for (int nextLayerNodeIndex = 0; nextLayerNodeIndex < layerSizes[layerIndex + 1]; nextLayerNodeIndex ++)
         {
-            int index = getIndex(layerIndex + 1, nextLayerNodeIndex, nodeIndex, layerSizes);
             sum += initialWeights[index] *
-                nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex + 1, nextLayerNodeIndex)];
+                nodeErrors[nodeDataErrorsOffset + errorIndex];
+            index += 1;
+            errorIndex += 1;
         }
         float value = nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)];
         nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] = sum * value * (1 - value);
@@ -263,17 +269,21 @@ __global__ void updateWeights(
 )
 {
     int nodeIndex = threadIdx.x;
+    int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
+    int errorIndex = getErrorIndex(layerSizes, layerIndex, nodeIndex);
+    int valueIndex = getValueIndex(layerSizes, layerIndex - 1, 0);
     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
     {
-        int index = getIndex(layerIndex, nodeIndex, weightIndex, layerSizes);
         scratchWeights[myWeightsIndex + index] =
             -1 *
             learnRate *
-            nodeErrors[nodeDataErrorsOffset + getErrorIndex(layerSizes, layerIndex, nodeIndex)] *
-            nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, weightIndex)];
+            nodeErrors[nodeDataErrorsOffset + errorIndex] *
+            nodeValues[nodeDataValuesOffset + valueIndex];
+        index += 1;
+        valueIndex += 1;
     }
     // update bias
-    int index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
+    index = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
     scratchWeights[myWeightsIndex + index] =
         -1 *
         learnRate *
