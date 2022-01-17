@@ -197,7 +197,8 @@ __global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
     // if we use ~1000 threads, the number of adds it takes should be like 64 * 17 in the above example
     // each thread handles one index of the vectors, summing the value of all vectors at that index
     // all other vectors will be summed into the vector starting at index 0
-    for (int indexInVector = threadIdx.x; indexInVector < vectorLength; indexInVector += blockDim.x)
+    int threadsInGrid = blockDim.x * gridDim.x;
+    for (int indexInVector = blockDim.x * blockIdx.x + threadIdx.x; indexInVector < vectorLength; indexInVector += threadsInGrid)
     {
         for (int vectorNumber = 1; vectorNumber < numVectors; vectorNumber ++)
         {
@@ -627,7 +628,7 @@ void batchTrainNetworkGpu(
 
             cudaEventRecord(start);
             // add up the weight delta vectors
-            sumVectors<<<1, 1024>>>(d_scratchWeights, thisBatchNumSamples, numWeights);
+            sumVectors<<<32, 1024>>>(d_scratchWeights, thisBatchNumSamples, numWeights);
             cudaEventRecord(stop);
             cudaDeviceSynchronize();
             cudaEventElapsedTime(&msTemp, start, stop);
