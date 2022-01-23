@@ -205,13 +205,27 @@ __global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
     }
 }
 
-__global__ void updateNodeValues(
+__global__ void k_updateNodeValues(
     int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
     float *initialWeights, float *nodeValuesIn, float *nodeValuesOut,
     int *layerSizes, int layerIndex
 )
 {
-    int nodeIndex = threadIdx.x;
+    updateNodeValues(
+        threadIdx.x,
+        myWeightsIndex, nodeDataValuesInOffset, nodeDataValuesOutOffset,
+        initialWeights, nodeValuesIn, nodeValuesOut,
+        layerSizes, layerIndex
+    );
+}
+
+__device__ void updateNodeValues(
+    int nodeIndex,
+    int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
+    float *initialWeights, float *nodeValuesIn, float *nodeValuesOut,
+    int *layerSizes, int layerIndex
+)
+{
     float sum = 0;
     int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
     int valueIndex = 0;
@@ -228,13 +242,27 @@ __global__ void updateNodeValues(
     nodeValuesOut[nodeDataValuesOutOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
 }
 
-__global__ void updateNodeErrors(
+__global__ void k_updateNodeErrors(
     int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
     float *initialWeights, float *nodeValues, float *nodeErrors, float *trueValues,
     int *layerSizes, int numLayers, int layerIndex
 )
 {
-    int nodeIndex = threadIdx.x;
+    updateNodeErrors(
+        threadIdx.x,
+        myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
+        initialWeights, nodeValues, nodeErrors, trueValues,
+        layerSizes, numLayers, layerIndex
+    );
+}
+
+__device__ void updateNodeErrors(
+    int nodeIndex,
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
+    float *initialWeights, float *nodeValues, float *nodeErrors, float *trueValues,
+    int *layerSizes, int numLayers, int layerIndex
+)
+{
     if (layerIndex == numLayers - 1)
     {
         // special case for output layer
@@ -262,13 +290,27 @@ __global__ void updateNodeErrors(
     }
 }
 
-__global__ void updateWeights(
+__global__ void k_updateWeights(
     int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
     float *scratchWeights, float *nodeValues, float *nodeErrors,
     int *layerSizes, int layerIndex, float learnRate
 )
 {
-    int nodeIndex = threadIdx.x;
+    updateWeights(
+        threadIdx.x,
+        myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset,
+        scratchWeights, nodeValues, nodeErrors,
+        layerSizes, layerIndex, learnRate
+    );
+}
+
+__device__ void updateWeights(
+    int nodeIndex,
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
+    float *scratchWeights, float *nodeValues, float *nodeErrors,
+    int *layerSizes, int layerIndex, float learnRate
+)
+{
     int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
     int errorIndex = getErrorIndex(layerSizes, layerIndex, nodeIndex);
     int valueIndex = 0;
@@ -322,6 +364,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // start with first hidden layer
         float *nodeValuesIn = 0;
         int nodeValuesInOffset = 0;
+        int useSubKernels = 1;
+
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
             // first layer is just the training data
@@ -335,20 +379,52 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValuesIn = nodeValues;
                 nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
             }
-            updateNodeValues<<<1, layerSizes[layerIndex]>>>(
-                myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
-                weights, nodeValuesIn, nodeValues,
-                layerSizes, layerIndex
-            );
+
+            if (useSubKernels)
+            {
+                k_updateNodeValues<<<1, layerSizes[layerIndex]>>>(
+                    myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
+                    weights, nodeValuesIn, nodeValues,
+                    layerSizes, layerIndex
+                );
+            }
+            else
+            {
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    updateNodeValues(
+                        nodeIndex,
+                        myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
+                        weights, nodeValuesIn, nodeValues,
+                        layerSizes, layerIndex
+                    );
+                }
+            }
         }
+
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
-            updateNodeErrors<<<1, layerSizes[layerIndex]>>>(
-                myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
-                weights, nodeValues, nodeErrors, trueValues,
-                layerSizes, numLayers, layerIndex
-            );
+            if (useSubKernels)
+            {
+                k_updateNodeErrors<<<1, layerSizes[layerIndex]>>>(
+                    myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
+                    weights, nodeValues, nodeErrors, trueValues,
+                    layerSizes, numLayers, layerIndex
+                );
+            }
+            else
+            {
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    updateNodeErrors(
+                        nodeIndex,
+                        myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
+                        weights, nodeValues, nodeErrors, trueValues,
+                        layerSizes, numLayers, layerIndex
+                    );
+                }
+            }
         }
         if (debug)
         {
@@ -368,11 +444,27 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValuesIn = nodeValues;
                 nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
             }
-            updateWeights<<<1, layerSizes[layerIndex]>>>(
-                myWeightsIndex, nodeValuesInOffset, nodeDataErrorsOffset,
-                scratchWeights, nodeValuesIn, nodeErrors,
-                layerSizes, layerIndex, learnRate
-            );
+
+            if (useSubKernels)
+            {
+                k_updateWeights<<<1, layerSizes[layerIndex]>>>(
+                    myWeightsIndex, nodeValuesInOffset, nodeDataErrorsOffset,
+                    scratchWeights, nodeValuesIn, nodeErrors,
+                    layerSizes, layerIndex, learnRate
+                );
+            }
+            else
+            {
+                for (int nodeIndex = 0; nodeIndex < layerSizes[layerIndex]; nodeIndex ++)
+                {
+                    updateWeights(
+                        nodeIndex,
+                        myWeightsIndex, nodeValuesInOffset, nodeDataErrorsOffset,
+                        scratchWeights, nodeValuesIn, nodeErrors,
+                        layerSizes, layerIndex, learnRate
+                    );
+                }
+            }
         }
         if (debug)
         {

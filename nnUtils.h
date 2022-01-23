@@ -26,19 +26,40 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *d_nodeErrors, float *d_nodeValues, float *scratchWeights
 );
 
-__global__ void updateNodeValues(
+__global__ void k_updateNodeValues(
     int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
     float *scratchWeights, float *nodeValuesIn, float *nodeValuesOut,
     int *layerSizes, int layerIndex
 );
 
-__global__ void updateNodeErrors(
+__device__ void updateNodeValues(
+    int nodeIndex,
+    int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
+    float *scratchWeights, float *nodeValuesIn, float *nodeValuesOut,
+    int *layerSizes, int layerIndex
+);
+
+__global__ void k_updateNodeErrors(
     int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
     float *scratchWeights, float *nodeValues, float *nodeErrors, float *trueValues,
     int *layerSizes, int numLayers, int layerIndex
 );
 
-__global__ void updateWeights(
+__device__ void updateNodeErrors(
+    int nodeIndex,
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset, int trueValueStartIndex,
+    float *scratchWeights, float *nodeValues, float *nodeErrors, float *trueValues,
+    int *layerSizes, int numLayers, int layerIndex
+);
+
+__global__ void k_updateWeights(
+    int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
+    float *scratchWeights, float *nodeValues, float *nodeErrors,
+    int *layerSizes, int layerIndex, float learnRate
+);
+
+__device__ void updateWeights(
+    int nodeIndex,
     int myWeightsIndex, int nodeDataValuesOffset, int nodeDataErrorsOffset,
     float *scratchWeights, float *nodeValues, float *nodeErrors,
     int *layerSizes, int layerIndex, float learnRate
