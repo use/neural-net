@@ -73,7 +73,7 @@ void batchTrainNetworkGpu(
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
     int numEpochs, imageTrainingSamples *testCases,
-    int useSubkernels
+    int useSubkernels, int threadsPerBlock
 );
 
 float activationFunction(float x);

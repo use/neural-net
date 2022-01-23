@@ -640,15 +640,12 @@ void batchTrainNetworkGpu(
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
     int numEpochs, imageTrainingSamples *testCases,
-    int useSubkernels
+    int useSubkernels, int threadsPerBlock
 )
 {
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
-
-    // higher threadsPerBlock causes worse performance with how the code works right now
-    int threadsPerBlock = 1;
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
