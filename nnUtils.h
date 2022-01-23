@@ -27,8 +27,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 );
 
 __global__ void updateNodeValues(
-    int myWeightsIndex, int nodeDataValuesOffset,
-    float *scratchWeights, float *nodeValues,
+    int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
+    float *scratchWeights, float *nodeValuesIn, float *nodeValuesOut,
     int *layerSizes, int layerIndex
 );
 

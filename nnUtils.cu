@@ -206,18 +206,18 @@ __global__ void sumVectors(float *vectors, int numVectors, int vectorLength)
 }
 
 __global__ void updateNodeValues(
-    int myWeightsIndex, int nodeDataValuesOffset,
-    float *initialWeights, float *nodeValues,
+    int myWeightsIndex, int nodeDataValuesInOffset, int nodeDataValuesOutOffset,
+    float *initialWeights, float *nodeValuesIn, float *nodeValuesOut,
     int *layerSizes, int layerIndex
 )
 {
     int nodeIndex = threadIdx.x;
     float sum = 0;
     int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
-    int valueIndex = getValueIndex(layerSizes, layerIndex - 1, 0);
+    int valueIndex = 0;
     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
     {
-        float prevLayerValue = nodeValues[nodeDataValuesOffset + valueIndex];
+        float prevLayerValue = nodeValuesIn[nodeDataValuesInOffset + valueIndex];
         sum += prevLayerValue * initialWeights[index];
         index += 1;
         valueIndex += 1;
@@ -225,7 +225,7 @@ __global__ void updateNodeValues(
     // add bias
     int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
     sum += initialWeights[biasIndex];
-    nodeValues[nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
+    nodeValuesOut[nodeDataValuesOutOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
 }
 
 __global__ void updateNodeErrors(
@@ -271,7 +271,7 @@ __global__ void updateWeights(
     int nodeIndex = threadIdx.x;
     int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
     int errorIndex = getErrorIndex(layerSizes, layerIndex, nodeIndex);
-    int valueIndex = getValueIndex(layerSizes, layerIndex - 1, 0);
+    int valueIndex = 0;
     for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
     {
         scratchWeights[myWeightsIndex + index] =
@@ -318,27 +318,26 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
-        if (debug)
-        {
-            printf("start loading training sample\n");
-        }
-        // load training sample
-        for (int nodeIndex = 0; nodeIndex < layerSizes[0]; nodeIndex ++)
-        {
-            nodeValues[nodeDataValuesOffset + nodeIndex] = trainingData[dataStartIndex + nodeIndex];
-        }
-
-        if (debug)
-        {
-            printf("loaded training sample\n");
-        }
         // forward compute
         // start with first hidden layer
+        float *nodeValuesIn = 0;
+        int nodeValuesInOffset = 0;
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
+            // first layer is just the training data
+            if (layerIndex == 1)
+            {
+                nodeValuesIn = trainingData;
+                nodeValuesInOffset = dataStartIndex;
+            }
+            else
+            {
+                nodeValuesIn = nodeValues;
+                nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
+            }
             updateNodeValues<<<1, layerSizes[layerIndex]>>>(
-                myWeightsIndex, nodeDataValuesOffset,
-                weights, nodeValues,
+                myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
+                weights, nodeValuesIn, nodeValues,
                 layerSizes, layerIndex
             );
         }
@@ -358,9 +357,20 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // update weights
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
+            // first layer is just the training data
+            if (layerIndex == 1)
+            {
+                nodeValuesIn = trainingData;
+                nodeValuesInOffset = dataStartIndex;
+            }
+            else
+            {
+                nodeValuesIn = nodeValues;
+                nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
+            }
             updateWeights<<<1, layerSizes[layerIndex]>>>(
-                myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset,
-                scratchWeights, nodeValues, nodeErrors,
+                myWeightsIndex, nodeValuesInOffset, nodeDataErrorsOffset,
+                scratchWeights, nodeValuesIn, nodeErrors,
                 layerSizes, layerIndex, learnRate
             );
         }
