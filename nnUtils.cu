@@ -335,7 +335,9 @@ __device__ void updateWeights(
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate,
-    float *nodeErrors, float *nodeValues, float *scratchWeights)
+    float *nodeErrors, float *nodeValues, float *scratchWeights,
+    int useSubkernels
+)
 {
 
     int dataIndex = blockIdx.x * blockDim.x + threadIdx.x;
@@ -364,7 +366,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // start with first hidden layer
         float *nodeValuesIn = 0;
         int nodeValuesInOffset = 0;
-        int useSubKernels = 1;
 
         for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
         {
@@ -380,7 +381,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
             }
 
-            if (useSubKernels)
+            if (useSubkernels)
             {
                 k_updateNodeValues<<<1, layerSizes[layerIndex]>>>(
                     myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
@@ -405,7 +406,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         // find error of layers
         for (int layerIndex = numLayers - 1; layerIndex > 0; layerIndex --)
         {
-            if (useSubKernels)
+            if (useSubkernels)
             {
                 k_updateNodeErrors<<<1, layerSizes[layerIndex]>>>(
                     myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
@@ -445,7 +446,7 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
                 nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
             }
 
-            if (useSubKernels)
+            if (useSubkernels)
             {
                 k_updateWeights<<<1, layerSizes[layerIndex]>>>(
                     myWeightsIndex, nodeValuesInOffset, nodeDataErrorsOffset,
@@ -638,7 +639,9 @@ void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
-    int numEpochs, imageTrainingSamples *testCases)
+    int numEpochs, imageTrainingSamples *testCases,
+    int useSubkernels
+)
 {
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
     float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
@@ -725,7 +728,8 @@ void batchTrainNetworkGpu(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
                 d_trueValues, learnRate,
-                d_nodeErrors, d_nodeValues, d_scratchWeights
+                d_nodeErrors, d_nodeValues, d_scratchWeights,
+                useSubkernels
             );
             cudaEventRecord(stop);
             gpuErrchk( cudaPeekAtLastError() );

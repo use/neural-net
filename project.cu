@@ -11,7 +11,7 @@ void testAndFunctionGpu();
 void testTonyFunction();
 void testTonyFunctionGpu();
 void testImageDataParsing();
-void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate);
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate, int useSubkernels);
 void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate);
 void testImageSampleTestResult();
 void freeImageTrainingSamples(imageTrainingSamples *samples);
@@ -23,6 +23,7 @@ int numTestCasesDefault = 1000;
 int numEpochsDefault = 1;
 int batchSizeDefault = 64;
 float learnRateDefault = .05;
+int useSubkernelsDefault = 1;
 
 int main(int argc, char *argv[])
 {
@@ -35,9 +36,10 @@ int main(int argc, char *argv[])
     int numEpochs = numEpochsDefault;
     int batchSize = batchSizeDefault;
     float learnRate = learnRateDefault;
+    int useSubkernels = useSubkernelsDefault;
     char type = 'g';
 
-    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:")) != -1)
+    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:s:")) != -1)
     {
         switch (opt)
         {
@@ -58,6 +60,13 @@ int main(int argc, char *argv[])
                 break;
             case 'l':
                 learnRate = (float)atof(optarg);
+                break;
+            case 's':
+                useSubkernels = atoi(optarg);
+                if (useSubkernels != 0 && useSubkernels != 1)
+                {
+                    usage();
+                }
                 break;
             default:
                 usage();
@@ -98,7 +107,11 @@ int main(int argc, char *argv[])
     {
         printf("Batch Size: %d\n", batchSize);
         printf("Training with GPU\n");
-        testImageTrainingGpu(numNeurons, numSamples, numTestCases, numEpochs, batchSize, learnRate);
+        if (!useSubkernels)
+        {
+            printf("Subkernels DISABLED\n");
+        }
+        testImageTrainingGpu(numNeurons, numSamples, numTestCases, numEpochs, batchSize, learnRate, useSubkernels);
     }
     else if (type == 'c')
     {
@@ -131,6 +144,8 @@ void usage()
         learnRateDefault);
     printf("  -b <number> Use <number> batch size (default %d) (\"gpu\" only)\n",
         batchSizeDefault);
+    printf("  -s <0/1> Use subkernels during training (default %d) (\"gpu\" only)\n",
+        useSubkernelsDefault);
     printf("Program defaults:\n");
     printf("  Hidden Layer Neurons: %d\n", numNeuronsDefault);
     printf("  Training Samples: %d\n", numSamplesDefault);
@@ -138,6 +153,7 @@ void usage()
     printf("  Epochs: %d\n", numEpochsDefault);
     printf("  Learning Rate: %f\n", learnRateDefault);
     printf("  Batch Size: %d\n", batchSizeDefault);
+    printf("  Subkernels on/off: %d\n", useSubkernelsDefault);
 
     exit(EXIT_FAILURE);
 }
@@ -225,7 +241,7 @@ void testImageSampleTestResult()
     assert(0 == imageSampleTestResult(trueValues, 2, result4));
 }
 
-void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate)
+void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int numEpochs, int batchSize, float learnRate, int useSubkernels)
 {
     int numLayers = 3;
     int layerSizes[3] = {28 * 28, numHidden, 10};
@@ -245,7 +261,8 @@ void testImageTrainingGpu(int numHidden, int numSamples, int numTestCases, int n
         weights, numLayers, layerSizes,
         samples->inputSamples, numSamples, internalIterations,
         samples->trueOutput, learnRate, batchSize,
-        numEpochs, testCases
+        numEpochs, testCases,
+        useSubkernels
     );
 
     free(weights);
@@ -321,7 +338,7 @@ void testAndFunctionGpu()
         weights, numLayers, layerSizes,
         trainData, inDataCount, internalIterations,
         trueValues, .05, 2,
-        10000, NULL
+        10000, NULL, 1
     );
 
     printNetwork(weights, numLayers, layerSizes);
@@ -545,7 +562,8 @@ void testTonyFunctionGpu()
         net, numLayers, layerSizes,
         input, inDataLength, 1,
         trueOut, .05, 64,
-        100000, NULL
+        100000, NULL,
+        1
     );
 
     printNetwork(net, numLayers, layerSizes);

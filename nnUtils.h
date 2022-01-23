@@ -23,7 +23,8 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
     int numIterations, float *trueValues, float learnRate,
-    float *d_nodeErrors, float *d_nodeValues, float *scratchWeights
+    float *d_nodeErrors, float *d_nodeValues, float *scratchWeights,
+    int useSubkernels
 );
 
 __global__ void k_updateNodeValues(
@@ -71,7 +72,8 @@ void batchTrainNetworkGpu(
     float *weights, int numLayers, int *layerSizes,
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
-    int numEpochs, imageTrainingSamples *testCases
+    int numEpochs, imageTrainingSamples *testCases,
+    int useSubkernels
 );
 
 float activationFunction(float x);
