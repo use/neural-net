@@ -226,20 +226,42 @@ __device__ void updateNodeValues(
     int *layerSizes, int layerIndex
 )
 {
-    float sum = 0;
-    int index = getIndex(layerIndex, nodeIndex, 0, layerSizes);
-    int valueIndex = 0;
-    for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
-    {
-        float prevLayerValue = nodeValuesIn[nodeDataValuesInOffset + valueIndex];
-        sum += prevLayerValue * initialWeights[index];
-        index += 1;
-        valueIndex += 1;
-    }
+    int weightIndex = getIndex(layerIndex, nodeIndex, 0, layerSizes);
+    int outIndex = nodeDataValuesOutOffset + getValueIndex(layerSizes, layerIndex, nodeIndex);
+    k_dotProduct<<<1, layerSizes[layerIndex - 1], sizeof(float) * layerSizes[layerIndex - 1]>>>(
+        &nodeValuesIn[nodeDataValuesInOffset],
+        &initialWeights[weightIndex],
+        &nodeValuesOut[outIndex]
+    );
+    // // for (int weightIndex = 0; weightIndex < layerSizes[layerIndex - 1]; weightIndex ++)
+    // // {
+    // //     float prevLayerValue = nodeValuesIn[nodeDataValuesInOffset + valueIndex];
+    // //     sum += prevLayerValue * initialWeights[index];
+    // //     index += 1;
+    // //     valueIndex += 1;
+    // // }
     // add bias
     int biasIndex = getIndex(layerIndex, nodeIndex, layerSizes[layerIndex - 1], layerSizes);
-    sum += initialWeights[biasIndex];
-    nodeValuesOut[nodeDataValuesOutOffset + getValueIndex(layerSizes, layerIndex, nodeIndex)] = d_activationFunction(sum);
+    // need to ensure subkernel has finished executing before continuing
+    cudaDeviceSynchronize();
+    float tmp = nodeValuesOut[outIndex];
+    tmp += initialWeights[biasIndex];
+    nodeValuesOut[outIndex] = d_activationFunction(tmp);
+}
+
+__global__ void k_dotProduct(float *a, float *b, float *result)
+{
+    extern __shared__ float tmp[];
+    tmp[threadIdx.x] = a[threadIdx.x] * b[threadIdx.x];
+    __syncthreads();
+    if (threadIdx.x == 0)
+    {
+        // value at index 0 is the result of this thread's multiplication; we should skip it
+        for (int i = 1; i < blockDim.x; i++)
+        {
+            *result = *result + tmp[i];
+        }
+    }
 }
 
 __global__ void k_updateNodeErrors(

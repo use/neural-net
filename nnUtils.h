@@ -100,3 +100,4 @@ int getNumValueNodes(int numLayers, int *layerSizes);
 int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex);
 int getNumErrorNodes(int numLayers, int *layerSizes);
 int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex);
+__global__ void k_dotProduct(float *a, float *b, float *result);
