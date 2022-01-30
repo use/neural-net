@@ -812,13 +812,6 @@ void batchTrainNetworkGpu(
 
     if (showMetrics)
     {
-        printf("msGlobal: %.0f\n", msGlobal);
-        printf("msMemorySetup: %.0f (%.1f)\n", msMemorySetup, 100 * msMemorySetup / msGlobal);
-        printf("msTraining: %.0f (%.1f)\n", msTraining, 100 * msTraining / msGlobal);
-        printf("msSumming: %.0f (%.1f)\n", msSumming, 100 * msSumming / msGlobal);
-        printf("msWeightUpdates: %.0f (%.1f)\n", msWeightUpdates, 100 * msWeightUpdates / msGlobal);
-        printf("msAllTraining: %.0f (%.1f)\n", msAllTraining, 100 * msAllTraining / msGlobal);
-        printf("msTesting: %.0f (%.1f)\n", msTesting, 100 * msTesting / msGlobal);
         float totalAccountedFor =
             msTraining +
             msMemorySetup +
@@ -826,7 +819,33 @@ void batchTrainNetworkGpu(
             msTesting +
             msWeightUpdates
         ;
-        printf("Total Accounted For: %.0f (%.1f)\n", totalAccountedFor, 100 * totalAccountedFor / msGlobal);
+        printf(
+            "msGlobal,"
+            "msMemorySetup,"
+            "msTraining,"
+            "msSumming,"
+            "msWeightUpdates,"
+            "msAllTraining,"
+            "msTesting,"
+            "Total Accounted For\n"
+            "%.0f,"
+            "%.0f,"
+            "%.0f,"
+            "%.0f,"
+            "%.0f,"
+            "%.0f,"
+            "%.0f,"
+            "%.0f\n",
+
+            msGlobal,
+            msMemorySetup,
+            msTraining,
+            msSumming,
+            msWeightUpdates,
+            msAllTraining,
+            msTesting,
+            totalAccountedFor
+        );
     }
 
     free(scratchWeights);
