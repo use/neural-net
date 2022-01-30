@@ -502,10 +502,10 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     {
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
-            if (dataIndex % 1000 == 0)
-            {
-                printf("sample %d\n", dataIndex);
-            }
+            // if (dataIndex % 1000 == 0)
+            // {
+            //     printf("sample %d\n", dataIndex);
+            // }
 
             int dataStartIndex = dataIndex * layerSizes[0];
             int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
@@ -780,12 +780,12 @@ void batchTrainNetworkGpu(
                 printf("done adding deltas\n");
             }
 
-            if (1 || debug)
-            {
-                printf("Finished epoch %d / %d, batch %d / %d\n",
-                    epochIndex, numEpochs,
-                    batchNumber, numBatches);
-            }
+            // if (1 || debug)
+            // {
+            //     printf("Finished epoch %d / %d, batch %d / %d\n",
+            //         epochIndex, numEpochs,
+            //         batchNumber, numBatches);
+            // }
         }
 
         gettimeofday(&t2, NULL);
