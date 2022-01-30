@@ -487,13 +487,16 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
-    int numIterations, float *trueValues, float learnRate)
+    int numIterations, float *trueValues, float learnRate, float *trainingTime)
 {
     // node delta
     float *errors = (float *)malloc(sizeof(float) * getNumErrorNodes(numLayers, layerSizes));
 
     // activation values
     float *values = (float *)malloc(sizeof(float) * getNumValueNodes(numLayers, layerSizes));
+
+    struct timeval t1;
+    struct timeval t2;
 
     for (int iterationIndex = 0; iterationIndex < numIterations; iterationIndex ++)
     {
@@ -512,6 +515,8 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
             {
                 values[nodeIndex] = trainingData[dataStartIndex + nodeIndex];
             }
+
+            gettimeofday(&t1, NULL);
 
             // forward compute
             // start with first hidden layer
@@ -582,6 +587,12 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
                         errors[getErrorIndex(layerSizes, layerIndex, nodeIndex)];
                 }
             }
+
+            gettimeofday(&t2, NULL);
+            *trainingTime +=
+                (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
+                (t1.tv_sec * 1000 + t1.tv_usec / 1000);
+
         }
     }
 

@@ -200,6 +200,7 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
     struct timeval t1;
     struct timeval t2;
     float msAllTraining = 0;
+    float trainingTime = 0;
 
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex ++)
     {
@@ -208,7 +209,8 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
         trainNetwork(
             weights, numLayers, layerSizes,
             samples->inputSamples, numSamples,
-            1, samples->trueOutput, learnRate
+            1, samples->trueOutput, learnRate,
+            &trainingTime
         );
 
         gettimeofday(&t2, NULL);
@@ -221,6 +223,7 @@ void testImageTraining(int numHidden, int numSamples, int numTestCases, int numE
         testNetwork(weights, numLayers, layerSizes, testCases);
     }
 
+    printf("msTraining: %.0f\n", trainingTime);
     printf("msAllTraining: %.0f\n", msAllTraining);
 
     free(weights);
@@ -441,8 +444,8 @@ void testAndFunction()
             trueValues[i * inDataWidth + j] = tmpTrueValues[i][j];
         }
     }
-
-    trainNetwork(weights, numLayers, layerSizes, trainData, 4, 100001, trueValues, .05);
+    float trainingTime = 0;
+    trainNetwork(weights, numLayers, layerSizes, trainData, 4, 100001, trueValues, .05, &trainingTime);
 
     printNetwork(weights, numLayers, layerSizes);
 
@@ -513,7 +516,8 @@ void testTonyFunction()
             dataIndex ++;
         }
     }
-    trainNetwork(net, numLayers, layerSizes, input, 64, 100001, trueOut, .05);
+    float trainingTime = 0;
+    trainNetwork(net, numLayers, layerSizes, input, 64, 100001, trueOut, .05, &trainingTime);
 
     for (int i = 0; i < 64; i++)
     {

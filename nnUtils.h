@@ -18,7 +18,9 @@ void initNetworkWeights(float *weights, int numLayers, int *layerSizes);
 
 void trainNetwork(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
-    int numIterations, float *trueValues, float learnRate);
+    int numIterations, float *trueValues, float learnRate,
+    float *trainingTime
+);
 
 __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
     float *trainingData, int numTrainingData,
