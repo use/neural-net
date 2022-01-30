@@ -279,8 +279,8 @@ void testImageTrainingGpu(
     int threadsPerBlock
 )
 {
-    int numLayers = 3;
-    int layerSizes[3] = {28 * 28, numHidden, 10};
+    int numLayers = 4;
+    int layerSizes[4] = {28 * 28, numHidden, numHidden, 10};
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
