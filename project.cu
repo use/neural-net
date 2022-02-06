@@ -18,9 +18,10 @@ void testImageTrainingGpu(int numHidden,
     int batchSize,
     float learnRate,
     int useSubkernels,
-    int threadsPerBlock
+    int threadsPerBlock,
+    int hiddenLayers
 );
-void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate);
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate, int hiddenLayers);
 void testImageSampleTestResult();
 void freeImageTrainingSamples(imageTrainingSamples *samples);
 void usage();
@@ -33,6 +34,7 @@ int batchSizeDefault = 64;
 float learnRateDefault = .05;
 int useSubkernelsDefault = 1;
 int threadsPerBlockDefault = 1;
+int hiddenLayersDefault = 1;
 
 int main(int argc, char *argv[])
 {
@@ -47,9 +49,10 @@ int main(int argc, char *argv[])
     float learnRate = learnRateDefault;
     int useSubkernels = useSubkernelsDefault;
     int threadsPerBlock = threadsPerBlockDefault;
+    int hiddenLayers = hiddenLayersDefault;
     char type = 'g';
 
-    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:s:p:")) != -1)
+    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:s:p:i:")) != -1)
     {
         switch (opt)
         {
@@ -81,6 +84,9 @@ int main(int argc, char *argv[])
             case 'p':
                 threadsPerBlock = atoi(optarg);
                 break;
+            case 'i':
+                hiddenLayers = atoi(optarg);
+                break;
             default:
                 usage();
         }
@@ -93,7 +99,8 @@ int main(int argc, char *argv[])
         numTestCases < 1 ||
         numEpochs < 1 ||
         batchSize < 1 ||
-        learnRate > 1 || learnRate <= 0
+        learnRate > 1 || learnRate <= 0 ||
+        hiddenLayers < 1
     )
     {
         usage();
@@ -110,7 +117,8 @@ int main(int argc, char *argv[])
         usage();
     }
 
-    printf("Hidden Layer Neurons: %d\n", numNeurons);
+    printf("Hidden Layer Neurons (per layer): %d\n", numNeurons);
+    printf("Hidden Layers: %d\n", hiddenLayers);
     printf("Training Samples: %d\n", numSamples);
     printf("Test Cases: %d\n", numTestCases);
     printf("Epochs: %d\n", numEpochs);
@@ -124,20 +132,22 @@ int main(int argc, char *argv[])
         {
             printf("Subkernels DISABLED\n");
         }
-        testImageTrainingGpu(numNeurons,
+        testImageTrainingGpu(
+            numNeurons,
             numSamples,
             numTestCases,
             numEpochs,
             batchSize,
             learnRate,
             useSubkernels,
-            threadsPerBlock
+            threadsPerBlock,
+            hiddenLayers
         );
     }
     else if (type == 'c')
     {
         printf("Training with CPU\n");
-        testImageTraining(numNeurons, numSamples, numTestCases, numEpochs, learnRate);
+        testImageTraining(numNeurons, numSamples, numTestCases, numEpochs, learnRate, hiddenLayers);
     }
 
     // these features were used during development but not really used now
@@ -182,10 +192,20 @@ void usage()
     exit(EXIT_FAILURE);
 }
 
-void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate)
+void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate, int hiddenLayers)
 {
-    int numLayers = 3;
-    int layerSizes[3] = {28 * 28, numHidden, 10};
+    int numLayers = hiddenLayers + 2;
+
+    int layerSizes[numLayers];
+    // input layer
+    layerSizes[0] = 28 * 28;
+    // hidden layers
+    for (int i = 1; i < numLayers; i ++)
+    {
+        layerSizes[i] = numHidden;
+    }
+    // output layer
+    layerSizes[numLayers - 1] = 10;
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
@@ -276,11 +296,23 @@ void testImageTrainingGpu(
     int batchSize,
     float learnRate,
     int useSubkernels,
-    int threadsPerBlock
+    int threadsPerBlock,
+    int hiddenLayers
 )
 {
-    int numLayers = 3;
-    int layerSizes[3] = {28 * 28, numHidden, 10};
+    int numLayers = hiddenLayers + 2;
+
+    int layerSizes[numLayers];
+    // input layer
+    layerSizes[0] = 28 * 28;
+    // hidden layers
+    for (int i = 1; i < numLayers; i ++)
+    {
+        layerSizes[i] = numHidden;
+    }
+    // output layer
+    layerSizes[numLayers - 1] = 10;
+
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
     printf("Initialized weights\n");
