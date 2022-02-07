@@ -600,7 +600,7 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     free(values);
 }
 
-float *classify(float *weights, int numLayers, int *layerSizes, float *samples, int sampleIndex)
+__device__ __host__ float *classify(float *weights, int numLayers, int *layerSizes, float *samples, int sampleIndex)
 {
     int maxLayerSize = listMax(numLayers, layerSizes);
     float *values = (float *)malloc(sizeof(float) * getNumValueNodes(numLayers, layerSizes));
@@ -797,7 +797,7 @@ void batchTrainNetworkGpu(
         if (testCases)
         {
             gettimeofday(&t1, NULL);
-            testNetwork(weights, numLayers, layerSizes, testCases);
+            testNetworkGpu(weights, numLayers, layerSizes, testCases);
             gettimeofday(&t2, NULL);
             msTesting +=
                 (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
@@ -953,7 +953,7 @@ __device__ __host__ void printSampleSketch(float *pixelValues, int sampleIndex)
     }
 }
 
-int imageSampleTrueValue(float * trueValues, int sampleIndex)
+__device__ __host__ int imageSampleTrueValue(float * trueValues, int sampleIndex)
 {
     int nodesPerSample = 10;
     int startIndex = nodesPerSample * sampleIndex;
@@ -968,7 +968,7 @@ int imageSampleTrueValue(float * trueValues, int sampleIndex)
     return 0;
 }
 
-int imageSampleTestResult(float *trueValues, int sampleIndex, float *result)
+int __device__ __host__ imageSampleTestResult(float *trueValues, int sampleIndex, float *result)
 {
     int trueValue = imageSampleTrueValue(trueValues, sampleIndex);
 
@@ -981,7 +981,7 @@ int imageSampleTestResult(float *trueValues, int sampleIndex, float *result)
     return 0;
 }
 
-int imageSampleResultToInt(float *result)
+int __device__ __host__ imageSampleResultToInt(float *result)
 {
     int nodesPerSample = 10;
     int selectedValue = 0;
@@ -1023,4 +1023,145 @@ void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSa
         }
     }
     printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
+}
+
+void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases)
+{
+    int threadsPerBlock = 1;
+    int numWeights = getNumNetworkWeights(numLayers, layerSizes);
+    int batchSize = 256;
+    int numBatches = (int)ceil((float)testCases->numItems / (float)batchSize);
+    int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
+    int inDataWidth = layerSizes[0];
+    int outDataWidth = layerSizes[numLayers - 1];
+    int results[batchSize];
+
+    printf("numBatches: %d\n", numBatches);
+    printf("numBlocks: %d\n", numBlocks);
+
+    float *d_weights = 0;
+    int *d_layerSizes = 0;
+    float *d_testData = 0;
+    float *d_trueValues = 0;
+    float *d_nodeValues = 0;
+    int *d_results = 0;
+
+    cudaMalloc(&d_weights, sizeof(float) * numWeights);
+    cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
+    cudaMalloc(&d_testData, sizeof(float) * batchSize * inDataWidth);
+    cudaMalloc(&d_trueValues, sizeof(float) * batchSize * outDataWidth);
+    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_results, sizeof(int) * batchSize);
+
+    cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+
+    int numCorrect = 0;
+    for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
+    {
+        printf("starting batch %d\n", batchNumber);
+        int testDataStartIndex = batchNumber * batchSize * inDataWidth;
+        int trueValuesStartIndex = batchNumber * batchSize * outDataWidth;
+        int thisBatchNumSamples = batchSize;
+        if ((batchNumber + 1) * batchSize > testCases->numItems)
+        {
+            // in this case our final batch has more capacity than the number of remaining samples
+            // need to copy less data in
+            thisBatchNumSamples = batchSize - ((batchNumber + 1) * batchSize - testCases->numItems);
+        }
+        int testDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
+        int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * outDataWidth;
+        // copy in the samples of this batch
+        cudaMemcpy(d_testData, testCases->inputSamples + testDataStartIndex, testDataBytesToCopy, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_trueValues, testCases->trueOutput + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
+        classifySample<<<numBlocks, thisBatchNumSamples>>>(
+            d_weights, numLayers, d_layerSizes,
+            d_testData, thisBatchNumSamples,
+            d_trueValues, d_nodeValues,
+            d_results
+        );
+        cudaMemcpy(results, d_results, sizeof(int) * batchSize, cudaMemcpyDeviceToHost);
+
+        printf("thisBatchNumSamples: %d\n", thisBatchNumSamples);
+        // sum results
+        for (int i = 0; i < thisBatchNumSamples; i ++)
+        {
+            printf("result %d: %d\n", i, results[i]);
+            numCorrect += results[i];
+        }
+    }
+    printf("numcorrect: %d\n", numCorrect);
+    printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
+}
+
+__global__ void classifySample(
+    float *weights, int numLayers, int *layerSizes,
+    float *testData, int thisBatchNumSamples,
+    float *trueValues, float *nodeValues,
+    int *results)
+{
+    int testCaseIndex = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (testCaseIndex >= thisBatchNumSamples)
+    {
+        return;
+    }
+
+    int numValueNodes = getNumValueNodes(numLayers, layerSizes);
+
+    int nodeDataValuesOffset = (blockIdx.x * blockDim.x + threadIdx.x) * numValueNodes;
+
+    // forward compute
+    // start with first hidden layer
+    float *nodeValuesIn = 0;
+    int nodeValuesInOffset = 0;
+
+    for (int layerIndex = 1; layerIndex < numLayers; layerIndex ++)
+    {
+        // first layer is just the training data
+        if (layerIndex == 1)
+        {
+            nodeValuesIn = testData;
+            nodeValuesInOffset = testCaseIndex * layerSizes[0];
+        }
+        else
+        {
+            nodeValuesIn = nodeValues;
+            nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
+        }
+
+        k_updateNodeValues<<<1, layerSizes[layerIndex]>>>(
+            0, nodeValuesInOffset, nodeDataValuesOffset,
+            weights, nodeValuesIn, nodeValues,
+            layerSizes, layerIndex
+        );
+    }
+
+    if (testCaseIndex == 0)
+    {
+        printf("calc: ");
+        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
+        {
+            int idx = getValueIndex(layerSizes, numLayers - 1, i);
+            printf("%.2f ", nodeValues[idx]);
+        }
+        printf("\n");
+        printf("true: ");
+        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
+        {
+            int idx = testCaseIndex * layerSizes[numLayers - 1] + i;
+            printf("%.2f ", trueValues[idx]);
+        }
+        printf("\n");
+    }
+
+    int isCorrect = imageSampleTestResult(
+        trueValues,
+        testCaseIndex,
+        nodeValues + getValueIndex(layerSizes, numLayers - 1, 0)
+    );
+
+    printf("testCaseIndex: %d, isCorrect: %d\n", testCaseIndex, isCorrect);
+
+    results[testCaseIndex] = isCorrect;
 }
