@@ -1022,5 +1022,5 @@ void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSa
             // printf("NOPE");
         }
     }
-    printf("Accuracy: %.2f\n", (float)numCorrect / (float) testCases->numItems);
+    printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
 }
