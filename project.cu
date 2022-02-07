@@ -315,12 +315,10 @@ void testImageTrainingGpu(
 
     float *weights = createNetwork(numLayers, layerSizes);
     initNetworkWeights(weights, numLayers, layerSizes);
-    printf("Initialized weights\n");
 
     char filePath[] = "data/mnist_train.csv";
     char filePathTest[] = "data/mnist_test.csv";
     imageTrainingSamples *samples = getImageData(filePath, numSamples, 0);
-    printf("Got training data\n");
 
     imageTrainingSamples *testCases = getImageData(filePathTest, numTestCases, 0);
 
@@ -336,9 +334,7 @@ void testImageTrainingGpu(
     free(weights);
     freeImageTrainingSamples(samples);
     freeImageTrainingSamples(testCases);
-    printf("Done training\n");
 
-    // printNetwork(weights, numLayers, layerSizes);
 }
 
 void testImageDataParsing()
