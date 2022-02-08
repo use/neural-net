@@ -1029,15 +1029,13 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
 {
     int threadsPerBlock = 1;
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
-    int batchSize = 256;
+    int batchSize = 2048; // this doesn't seem to affect performance as long as it's large enough
     int numBatches = (int)ceil((float)testCases->numItems / (float)batchSize);
-    int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
+    // The block and thread usage should be reworked. Currently it uses batchSize blocks and 1 thread per block
+    // int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
     int inDataWidth = layerSizes[0];
     int outDataWidth = layerSizes[numLayers - 1];
     int results[batchSize];
-
-    printf("numBatches: %d\n", numBatches);
-    printf("numBlocks: %d\n", numBlocks);
 
     float *d_weights = 0;
     int *d_layerSizes = 0;
@@ -1050,7 +1048,7 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
     cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
     cudaMalloc(&d_testData, sizeof(float) * batchSize * inDataWidth);
     cudaMalloc(&d_trueValues, sizeof(float) * batchSize * outDataWidth);
-    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
+    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * batchSize);
     cudaMalloc(&d_results, sizeof(int) * batchSize);
 
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
@@ -1059,7 +1057,6 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
     int numCorrect = 0;
     for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
     {
-        printf("starting batch %d\n", batchNumber);
         int testDataStartIndex = batchNumber * batchSize * inDataWidth;
         int trueValuesStartIndex = batchNumber * batchSize * outDataWidth;
         int thisBatchNumSamples = batchSize;
@@ -1074,7 +1071,7 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
         // copy in the samples of this batch
         cudaMemcpy(d_testData, testCases->inputSamples + testDataStartIndex, testDataBytesToCopy, cudaMemcpyHostToDevice);
         cudaMemcpy(d_trueValues, testCases->trueOutput + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
-        classifySample<<<numBlocks, thisBatchNumSamples>>>(
+        classifyAndCheckSample<<<thisBatchNumSamples, 1>>>(
             d_weights, numLayers, d_layerSizes,
             d_testData, thisBatchNumSamples,
             d_trueValues, d_nodeValues,
@@ -1082,19 +1079,16 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
         );
         cudaMemcpy(results, d_results, sizeof(int) * batchSize, cudaMemcpyDeviceToHost);
 
-        printf("thisBatchNumSamples: %d\n", thisBatchNumSamples);
         // sum results
         for (int i = 0; i < thisBatchNumSamples; i ++)
         {
-            printf("result %d: %d\n", i, results[i]);
             numCorrect += results[i];
         }
     }
-    printf("numcorrect: %d\n", numCorrect);
     printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
 }
 
-__global__ void classifySample(
+__global__ void classifyAndCheckSample(
     float *weights, int numLayers, int *layerSizes,
     float *testData, int thisBatchNumSamples,
     float *trueValues, float *nodeValues,
@@ -1104,6 +1098,7 @@ __global__ void classifySample(
 
     if (testCaseIndex >= thisBatchNumSamples)
     {
+        printf("this should never happen (%d, %d)\n", testCaseIndex, thisBatchNumSamples);
         return;
     }
 
@@ -1137,31 +1132,17 @@ __global__ void classifySample(
         );
     }
 
-    if (testCaseIndex == 0)
-    {
-        printf("calc: ");
-        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
-        {
-            int idx = getValueIndex(layerSizes, numLayers - 1, i);
-            printf("%.2f ", nodeValues[idx]);
-        }
-        printf("\n");
-        printf("true: ");
-        for (int i = 0; i < layerSizes[numLayers - 1]; i++)
-        {
-            int idx = testCaseIndex * layerSizes[numLayers - 1] + i;
-            printf("%.2f ", trueValues[idx]);
-        }
-        printf("\n");
-    }
+    /*
+        If the rest of the kernel needs to do operations on memory affected by a running subkernel,
+        we need to wait for subkernel completion. Otherwise we'll get race conditions.
+    */
+    cudaDeviceSynchronize();
 
     int isCorrect = imageSampleTestResult(
         trueValues,
         testCaseIndex,
-        nodeValues + getValueIndex(layerSizes, numLayers - 1, 0)
+        nodeValues + testCaseIndex * numValueNodes + getValueIndex(layerSizes, numLayers - 1, 0)
     );
-
-    printf("testCaseIndex: %d, isCorrect: %d\n", testCaseIndex, isCorrect);
 
     results[testCaseIndex] = isCorrect;
 }
