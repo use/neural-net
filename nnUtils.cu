@@ -473,12 +473,6 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
         }
     }
 
-    // calculate deltas for this sample
-    // for (int w = 0; w < numWeights; w ++)
-    // {
-    //     scratchWeights[myWeightsIndex + w] = scratchWeights[myWeightsIndex + w] - weights[w];
-    // }
-
     if (debug)
     {
         printf("finished internal iterations\n");
@@ -502,11 +496,6 @@ void trainNetwork(float *weights, int numLayers, int *layerSizes,
     {
         for (int dataIndex = 0; dataIndex < numTrainingData; dataIndex ++)
         {
-            // if (dataIndex % 1000 == 0)
-            // {
-            //     printf("sample %d\n", dataIndex);
-            // }
-
             int dataStartIndex = dataIndex * layerSizes[0];
             int trueValueStartIndex = dataIndex * layerSizes[numLayers - 1];
 
@@ -781,13 +770,6 @@ void batchTrainNetworkGpu(
             {
                 printf("done adding deltas\n");
             }
-
-            // if (1 || debug)
-            // {
-            //     printf("Finished epoch %d / %d, batch %d / %d\n",
-            //         epochIndex, numEpochs,
-            //         batchNumber, numBatches);
-            // }
         }
 
         cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
