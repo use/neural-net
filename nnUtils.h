@@ -111,3 +111,5 @@ __global__ void classifyAndCheckSample(
     float *trueValues, float *nodeValues,
     int *results
 );
+
+__global__ void applyBatchWeightUpdate(float *weights, float *deltas, int numWeights);

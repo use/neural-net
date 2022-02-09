@@ -765,10 +765,13 @@ void batchTrainNetworkGpu(
             struct timeval t2_weightUpdates;
             gettimeofday(&t1_weightUpdates, NULL);
 
-            for (int w = 0; w < numWeights; w ++)
-            {
-                weights[w] += scratchWeights[w];
-            }
+            int applyWeightsThreadsPer = 1024;
+            int applyWeightsNumBlocks = (int)ceil((float)numWeights / (float)applyWeightsThreadsPer);
+            applyBatchWeightUpdate<<<applyWeightsNumBlocks, applyWeightsThreadsPer>>>(
+                d_weights, d_scratchWeights, numWeights
+            );
+
+            cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
 
             gettimeofday(&t2_weightUpdates, NULL);
             msWeightUpdates +=
@@ -1147,4 +1150,16 @@ __global__ void classifyAndCheckSample(
     );
 
     results[testCaseIndex] = isCorrect;
+}
+
+__global__ void applyBatchWeightUpdate(float *weights, float *deltas, int numWeights)
+{
+    int weightIndex = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (weightIndex > numWeights)
+    {
+        return;
+    }
+
+    weights[weightIndex] = weights[weightIndex] + deltas[weightIndex];
 }
