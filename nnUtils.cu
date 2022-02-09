@@ -644,7 +644,6 @@ void batchTrainNetworkGpu(
 )
 {
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
-    float *scratchWeights = (float *) malloc(sizeof(float) * batchSize * numWeights);
     int inDataWidth = layerSizes[0];
 
     float *d_weights = 0;
@@ -744,8 +743,6 @@ void batchTrainNetworkGpu(
             cudaEventElapsedTime(&msTemp, start, stop);
             msSumming += msTemp;
 
-            cudaMemcpy(scratchWeights, d_scratchWeights, numWeights * sizeof(float), cudaMemcpyDeviceToHost);
-
             if (debug)
             {
                 printf("start adding deltas\n");
@@ -833,8 +830,6 @@ void batchTrainNetworkGpu(
             totalAccountedFor
         );
     }
-
-    free(scratchWeights);
 }
 
 imageTrainingSamples *getImageData(char *filename, int numItems, int startingIndex)
