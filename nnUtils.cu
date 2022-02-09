@@ -706,10 +706,11 @@ void batchTrainNetworkGpu(
 
         gettimeofday(&t1, NULL);
 
+        cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
             cudaEventRecord(start);
-            cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
             int trainDataStartIndex = batchNumber * batchSize * inDataWidth;
             int trueValuesStartIndex = batchNumber * batchSize * layerSizes[numLayers - 1];
@@ -771,8 +772,6 @@ void batchTrainNetworkGpu(
                 d_weights, d_scratchWeights, numWeights
             );
 
-            cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
-
             gettimeofday(&t2_weightUpdates, NULL);
             msWeightUpdates +=
                 (t2_weightUpdates.tv_sec * 1000 + t2_weightUpdates.tv_usec / 1000) -
@@ -790,6 +789,8 @@ void batchTrainNetworkGpu(
             //         batchNumber, numBatches);
             // }
         }
+
+        cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
 
         gettimeofday(&t2, NULL);
         msAllTraining +=
