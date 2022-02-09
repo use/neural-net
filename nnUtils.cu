@@ -1027,12 +1027,12 @@ void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSa
 
 void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases)
 {
-    int threadsPerBlock = 1;
+    int threadsPerBlock = 4;
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
     int batchSize = 2048; // this doesn't seem to affect performance as long as it's large enough
     int numBatches = (int)ceil((float)testCases->numItems / (float)batchSize);
     // The block and thread usage should be reworked. Currently it uses batchSize blocks and 1 thread per block
-    // int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
+    int numBlocks = (int)ceil((float)batchSize / (float)threadsPerBlock); // need to check this math
     int inDataWidth = layerSizes[0];
     int outDataWidth = layerSizes[numLayers - 1];
     int results[batchSize];
@@ -1054,6 +1054,9 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
     cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
     cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
 
+    printf("Begin testing (%d samples, %d samples per batch, %d batches, %d blocks, %d threads each)\n",
+        testCases->numItems, batchSize, numBatches, numBlocks, threadsPerBlock);
+
     int numCorrect = 0;
     for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
     {
@@ -1071,7 +1074,7 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
         // copy in the samples of this batch
         cudaMemcpy(d_testData, testCases->inputSamples + testDataStartIndex, testDataBytesToCopy, cudaMemcpyHostToDevice);
         cudaMemcpy(d_trueValues, testCases->trueOutput + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
-        classifyAndCheckSample<<<thisBatchNumSamples, 1>>>(
+        classifyAndCheckSample<<<numBlocks, threadsPerBlock>>>(
             d_weights, numLayers, d_layerSizes,
             d_testData, thisBatchNumSamples,
             d_trueValues, d_nodeValues,
@@ -1098,7 +1101,6 @@ __global__ void classifyAndCheckSample(
 
     if (testCaseIndex >= thisBatchNumSamples)
     {
-        printf("this should never happen (%d, %d)\n", testCaseIndex, thisBatchNumSamples);
         return;
     }
 
