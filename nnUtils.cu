@@ -687,6 +687,7 @@ void batchTrainNetworkGpu(
     float msTesting = 0;
     struct timeval t1;
     struct timeval t2;
+    float epochAccuracies[numEpochs];
 
     cudaEventRecord(globalStart);
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex++)
@@ -781,6 +782,7 @@ void batchTrainNetworkGpu(
         {
             gettimeofday(&t1, NULL);
             float accuracy = testNetworkGpu(weights, numLayers, layerSizes, testCases);
+            epochAccuracies[epochIndex] = accuracy;
             printf("Accuracy: %.3f\n", accuracy);
             gettimeofday(&t2, NULL);
             msTesting +=
@@ -830,6 +832,17 @@ void batchTrainNetworkGpu(
             msTesting,
             totalAccountedFor
         );
+
+        printf("Epoch Accuracies:\n");
+        for (int i = 0; i < numEpochs; i++)
+        {
+            printf("%.4f", epochAccuracies[i]);
+            if (i != numEpochs - 1)
+            {
+                printf(",");
+            }
+        }
+        printf("\n");
     }
 }
 
