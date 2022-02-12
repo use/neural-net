@@ -780,7 +780,8 @@ void batchTrainNetworkGpu(
         if (testCases)
         {
             gettimeofday(&t1, NULL);
-            testNetworkGpu(weights, numLayers, layerSizes, testCases);
+            float accuracy = testNetworkGpu(weights, numLayers, layerSizes, testCases);
+            printf("Accuracy: %.3f\n", accuracy);
             gettimeofday(&t2, NULL);
             msTesting +=
                 (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
@@ -1006,7 +1007,7 @@ void testNetwork(float *weights, int numLayers, int *layerSizes, imageTrainingSa
     printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
 }
 
-void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases)
+float testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases)
 {
     int threadsPerBlock = 4;
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
@@ -1069,7 +1070,8 @@ void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainin
             numCorrect += results[i];
         }
     }
-    printf("Accuracy: %.3f\n", (float)numCorrect / (float) testCases->numItems);
+
+    return (float)numCorrect / (float) testCases->numItems;
 }
 
 __global__ void classifyAndCheckSample(

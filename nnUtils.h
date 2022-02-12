@@ -103,7 +103,7 @@ int getValueIndex(int *layerSizes, int layerIndex, int nodeIndex);
 int getNumErrorNodes(int numLayers, int *layerSizes);
 int getErrorIndex(int *layerSizes, int layerIndex, int nodeIndex);
 
-void testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases);
+float testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTrainingSamples *testCases);
 
 __global__ void classifyAndCheckSample(
     float *weights, int numLayers, int *layerSizes,
