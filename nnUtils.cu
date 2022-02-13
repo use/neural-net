@@ -211,10 +211,18 @@ __global__ void k_updateNodeValues(
     int *layerSizes, int layerIndex
 )
 {
+    extern __shared__ float sharedMemNodes[];
+    for (int i = threadIdx.x; i < layerSizes[layerIndex - 1]; i += blockDim.x)
+    {
+        sharedMemNodes[i] = nodeValuesIn[nodeDataValuesInOffset + i];
+    }
+
+    __syncthreads();
+
     updateNodeValues(
         threadIdx.x,
-        myWeightsIndex, nodeDataValuesInOffset, nodeDataValuesOutOffset,
-        initialWeights, nodeValuesIn, nodeValuesOut,
+        myWeightsIndex, 0, nodeDataValuesOutOffset,
+        initialWeights, sharedMemNodes, nodeValuesOut,
         layerSizes, layerIndex
     );
 }
@@ -383,7 +391,8 @@ __global__ void trainNetworkGpu(float *weights, int numLayers, int *layerSizes,
 
             if (useSubkernels)
             {
-                k_updateNodeValues<<<1, layerSizes[layerIndex]>>>(
+                int sharedMemSize = sizeof(float) * layerSizes[layerIndex - 1];
+                k_updateNodeValues<<<1, layerSizes[layerIndex], sharedMemSize>>>(
                     myWeightsIndex, nodeValuesInOffset, nodeDataValuesOffset,
                     weights, nodeValuesIn, nodeValues,
                     layerSizes, layerIndex
@@ -1123,7 +1132,8 @@ __global__ void classifyAndCheckSample(
             nodeValuesInOffset = nodeDataValuesOffset + getValueIndex(layerSizes, layerIndex - 1, 0);
         }
 
-        k_updateNodeValues<<<1, layerSizes[layerIndex]>>>(
+        int sharedMemSize = sizeof(float) * layerSizes[layerIndex - 1];
+        k_updateNodeValues<<<1, layerSizes[layerIndex], sharedMemSize>>>(
             0, nodeValuesInOffset, nodeDataValuesOffset,
             weights, nodeValuesIn, nodeValues,
             layerSizes, layerIndex
