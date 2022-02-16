@@ -1149,7 +1149,7 @@ __global__ void applyBatchWeightUpdate(float *weights, float *deltas, int numWei
 {
     int weightIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (weightIndex > numWeights)
+    if (weightIndex >= numWeights)
     {
         return;
     }
