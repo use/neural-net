@@ -5,6 +5,11 @@ typedef struct imageTrainingSamples
     float *trueOutput;
 } imageTrainingSamples;
 
+typedef struct trainingOptions
+{
+    bool printBatchFinish;
+} trainingOptions;
+
 float *createNetwork(int numLayers, int *layerSizes);
 
 void printNetwork(float *weights, int numLayers, int *layerSizes);
@@ -75,7 +80,8 @@ void batchTrainNetworkGpu(
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
     int numEpochs, imageTrainingSamples *testCases,
-    int useSubkernels, int threadsPerBlock
+    int useSubkernels, int threadsPerBlock,
+    trainingOptions options
 );
 
 float activationFunction(float x);

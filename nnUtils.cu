@@ -640,7 +640,8 @@ void batchTrainNetworkGpu(
     float *trainData, int trainDataCount, int internalIterations,
     float *trueValues, float learnRate, int batchSize,
     int numEpochs, imageTrainingSamples *testCases,
-    int useSubkernels, int threadsPerBlock
+    int useSubkernels, int threadsPerBlock,
+    trainingOptions options
 )
 {
     int numWeights = getNumNetworkWeights(numLayers, layerSizes);
@@ -768,6 +769,12 @@ void batchTrainNetworkGpu(
             {
                 printf("done adding deltas\n");
             }
+            if (options.printBatchFinish)
+            {
+                printf("Finished epoch %d / %d, batch %d / %d\n",
+                    epochIndex, numEpochs,
+                    batchNumber, numBatches);
+            }
         }
 
         cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
@@ -777,7 +784,7 @@ void batchTrainNetworkGpu(
             (t2.tv_sec * 1000 + t2.tv_usec / 1000) -
             (t1.tv_sec * 1000 + t1.tv_usec / 1000);
 
-        printf("finished epoch %d\n", epochIndex);
+        printf("Finished epoch %d\n", epochIndex);
         if (testCases)
         {
             gettimeofday(&t1, NULL);

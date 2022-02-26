@@ -5,6 +5,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <getopt.h>
 
 void testAndFunction();
 void testAndFunctionGpu();
@@ -19,7 +20,8 @@ void testImageTrainingGpu(int numHidden,
     float learnRate,
     int useSubkernels,
     int threadsPerBlock,
-    int hiddenLayers
+    int hiddenLayers,
+    trainingOptions options
 );
 void testImageTraining(int numHidden, int numSamples, int numTestCases, int numEpochs, float learnRate, int hiddenLayers);
 void testImageSampleTestResult();
@@ -35,6 +37,7 @@ float learnRateDefault = .05;
 int useSubkernelsDefault = 1;
 int threadsPerBlockDefault = 1;
 int hiddenLayersDefault = 1;
+int printBatchFinishDefault = false;
 
 int main(int argc, char *argv[])
 {
@@ -51,11 +54,23 @@ int main(int argc, char *argv[])
     int threadsPerBlock = threadsPerBlockDefault;
     int hiddenLayers = hiddenLayersDefault;
     char type = 'g';
+    struct trainingOptions options;
+    options.printBatchFinish = printBatchFinishDefault;
 
-    while ((opt = getopt(argc, argv, "n:t:v:e:b:l:s:p:i:")) != -1)
+    static struct option long_options[] = {
+        {"print-batch-finish", no_argument, NULL, 100},
+        {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    while ((opt = getopt_long(argc, argv, "n:t:v:e:b:l:s:p:i:",
+        long_options, &option_index)) != -1)
     {
         switch (opt)
         {
+            case 100:
+                options.printBatchFinish = true;
+                break;
             case 'n':
                 numNeurons = atoi(optarg);
                 break;
@@ -141,7 +156,8 @@ int main(int argc, char *argv[])
             learnRate,
             useSubkernels,
             threadsPerBlock,
-            hiddenLayers
+            hiddenLayers,
+            options
         );
     }
     else if (type == 'c')
@@ -179,6 +195,7 @@ void usage()
         useSubkernelsDefault);
     printf("  -p <number> Use threads per block in training kernel grid (default %d) (\"gpu\" only)\n",
         useSubkernelsDefault);
+    printf("  --print-batch-finish Show a message after every batch completes (\"gpu\" only)\n");
     printf("Program defaults:\n");
     printf("  Hidden Layer Neurons: %d\n", numNeuronsDefault);
     printf("  Training Samples: %d\n", numSamplesDefault);
@@ -297,7 +314,8 @@ void testImageTrainingGpu(
     float learnRate,
     int useSubkernels,
     int threadsPerBlock,
-    int hiddenLayers
+    int hiddenLayers,
+    trainingOptions options
 )
 {
     int numLayers = hiddenLayers + 2;
@@ -328,7 +346,8 @@ void testImageTrainingGpu(
         samples->inputSamples, numSamples, internalIterations,
         samples->trueOutput, learnRate, batchSize,
         numEpochs, testCases,
-        useSubkernels, threadsPerBlock
+        useSubkernels, threadsPerBlock,
+        options
     );
 
     free(weights);
@@ -398,11 +417,13 @@ void testAndFunctionGpu()
     }
 
     int internalIterations = 1;
+    trainingOptions options;
+    options.printBatchFinish = false;
     batchTrainNetworkGpu(
         weights, numLayers, layerSizes,
         trainData, inDataCount, internalIterations,
         trueValues, .05, 2,
-        10000, NULL, 1, 1
+        10000, NULL, 1, 1, options
     );
 
     printNetwork(weights, numLayers, layerSizes);
@@ -623,12 +644,15 @@ void testTonyFunctionGpu()
             dataIndex ++;
         }
     }
+    trainingOptions options;
+    options.printBatchFinish = false;
     batchTrainNetworkGpu(
         net, numLayers, layerSizes,
         input, inDataLength, 1,
         trueOut, .05, 64,
         100000, NULL,
-        1, 1
+        1, 1,
+        options
     );
 
     printNetwork(net, numLayers, layerSizes);
