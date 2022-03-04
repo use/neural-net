@@ -662,21 +662,21 @@ void batchTrainNetworkGpu(
     printf("Threads Per Block: %d\n", threadsPerBlock);
     printf("Num Blocks: %d\n", numBlocks);
 
-    cudaMalloc(&d_weights, sizeof(float) * numWeights);
-    cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
-    cudaMalloc(&d_trainData, sizeof(float) * batchSize * inDataWidth);
-    cudaMalloc(&d_trueValues, sizeof(float) * batchSize * layerSizes[numLayers - 1]);
-    cudaMalloc(&d_nodeErrors, sizeof(float) * getNumErrorNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
-    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock);
-    cudaMalloc(&d_scratchWeights, sizeof(float) * batchSize * numWeights);
+    gpuErrchk(cudaMalloc(&d_weights, sizeof(float) * numWeights));
+    gpuErrchk(cudaMalloc(&d_layerSizes, sizeof(int) * numLayers));
+    gpuErrchk(cudaMalloc(&d_trainData, sizeof(float) * batchSize * inDataWidth));
+    gpuErrchk(cudaMalloc(&d_trueValues, sizeof(float) * batchSize * layerSizes[numLayers - 1]));
+    gpuErrchk(cudaMalloc(&d_nodeErrors, sizeof(float) * getNumErrorNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock));
+    gpuErrchk(cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * numBlocks * threadsPerBlock));
+    gpuErrchk(cudaMalloc(&d_scratchWeights, sizeof(float) * batchSize * numWeights));
 
-    cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
+    gpuErrchk(cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice));
 
     cudaEvent_t globalStart, globalStop, start, stop;
-    cudaEventCreate(&globalStart);
-    cudaEventCreate(&globalStop);
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
+    gpuErrchk(cudaEventCreate(&globalStart));
+    gpuErrchk(cudaEventCreate(&globalStop));
+    gpuErrchk(cudaEventCreate(&start));
+    gpuErrchk(cudaEventCreate(&stop));
     bool showMetrics = true;
     float msGlobal = 0;
     float msTemp = 0;
@@ -690,17 +690,17 @@ void batchTrainNetworkGpu(
     struct timeval t2;
     float epochAccuracies[numEpochs];
 
-    cudaEventRecord(globalStart);
+    gpuErrchk(cudaEventRecord(globalStart));
     for (int epochIndex = 0; epochIndex < numEpochs; epochIndex++)
     {
 
         gettimeofday(&t1, NULL);
 
-        cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+        gpuErrchk(cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice));
 
         for (int batchNumber = 0; batchNumber < numBatches; batchNumber ++)
         {
-            cudaEventRecord(start);
+            gpuErrchk(cudaEventRecord(start));
 
             int trainDataStartIndex = batchNumber * batchSize * inDataWidth;
             int trueValuesStartIndex = batchNumber * batchSize * layerSizes[numLayers - 1];
@@ -714,15 +714,15 @@ void batchTrainNetworkGpu(
             int trainDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
             int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * layerSizes[numLayers - 1];
             // copy in the samples of this batch
-            cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice);
-            cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
+            gpuErrchk(cudaMemcpy(d_trainData, trainData + trainDataStartIndex, trainDataBytesToCopy, cudaMemcpyHostToDevice));
+            gpuErrchk(cudaMemcpy(d_trueValues, trueValues + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice));
 
-            cudaEventRecord(stop);
-            cudaDeviceSynchronize();
-            cudaEventElapsedTime(&msTemp, start, stop);
+            gpuErrchk(cudaEventRecord(stop));
+            gpuErrchk(cudaDeviceSynchronize());
+            gpuErrchk(cudaEventElapsedTime(&msTemp, start, stop));
             msMemorySetup += msTemp;
 
-            cudaEventRecord(start);
+            gpuErrchk(cudaEventRecord(start));
             trainNetworkGpu<<<numBlocks, threadsPerBlock>>>(
                 d_weights, numLayers, d_layerSizes,
                 d_trainData, thisBatchNumSamples, internalIterations,
@@ -730,19 +730,20 @@ void batchTrainNetworkGpu(
                 d_nodeErrors, d_nodeValues, d_scratchWeights,
                 useSubkernels
             );
-            cudaEventRecord(stop);
+            gpuErrchk(cudaEventRecord(stop));
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
 
-            cudaEventElapsedTime(&msTemp, start, stop);
+            gpuErrchk(cudaEventElapsedTime(&msTemp, start, stop));
             msTraining += msTemp;
 
-            cudaEventRecord(start);
+            gpuErrchk(cudaEventRecord(start));
             // add up the weight delta vectors
             sumVectors<<<32, 1024>>>(d_scratchWeights, thisBatchNumSamples, numWeights);
-            cudaEventRecord(stop);
-            cudaDeviceSynchronize();
-            cudaEventElapsedTime(&msTemp, start, stop);
+            gpuErrchk(cudaPeekAtLastError());
+            gpuErrchk(cudaEventRecord(stop));
+            gpuErrchk(cudaDeviceSynchronize());
+            gpuErrchk(cudaEventElapsedTime(&msTemp, start, stop));
             msSumming += msTemp;
 
             if (debug)
@@ -759,6 +760,8 @@ void batchTrainNetworkGpu(
             applyBatchWeightUpdate<<<applyWeightsNumBlocks, applyWeightsThreadsPer>>>(
                 d_weights, d_scratchWeights, numWeights
             );
+            gpuErrchk(cudaPeekAtLastError());
+            gpuErrchk(cudaDeviceSynchronize());
 
             gettimeofday(&t2_weightUpdates, NULL);
             msWeightUpdates +=
@@ -777,7 +780,7 @@ void batchTrainNetworkGpu(
             }
         }
 
-        cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost);
+        gpuErrchk(cudaMemcpy(weights, d_weights, sizeof(float) * numWeights, cudaMemcpyDeviceToHost));
 
         gettimeofday(&t2, NULL);
         msAllTraining +=
@@ -798,9 +801,9 @@ void batchTrainNetworkGpu(
         }
     }
 
-    cudaEventRecord(globalStop);
-    cudaEventSynchronize(globalStop);
-    cudaEventElapsedTime(&msGlobal, globalStart, globalStop);
+    gpuErrchk(cudaEventRecord(globalStop));
+    gpuErrchk(cudaEventSynchronize(globalStop));
+    gpuErrchk(cudaEventElapsedTime(&msGlobal, globalStart, globalStop));
 
 
     if (showMetrics)
@@ -1046,15 +1049,15 @@ float testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTraini
     float *d_nodeValues = 0;
     int *d_results = 0;
 
-    cudaMalloc(&d_weights, sizeof(float) * numWeights);
-    cudaMalloc(&d_layerSizes, sizeof(int) * numLayers);
-    cudaMalloc(&d_testData, sizeof(float) * batchSize * inDataWidth);
-    cudaMalloc(&d_trueValues, sizeof(float) * batchSize * outDataWidth);
-    cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * batchSize);
-    cudaMalloc(&d_results, sizeof(int) * batchSize);
+    gpuErrchk(cudaMalloc(&d_weights, sizeof(float) * numWeights));
+    gpuErrchk(cudaMalloc(&d_layerSizes, sizeof(int) * numLayers));
+    gpuErrchk(cudaMalloc(&d_testData, sizeof(float) * batchSize * inDataWidth));
+    gpuErrchk(cudaMalloc(&d_trueValues, sizeof(float) * batchSize * outDataWidth));
+    gpuErrchk(cudaMalloc(&d_nodeValues, sizeof(float) * getNumValueNodes(numLayers, layerSizes) * batchSize));
+    gpuErrchk(cudaMalloc(&d_results, sizeof(int) * batchSize));
 
-    cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice);
+    gpuErrchk(cudaMemcpy(d_layerSizes, layerSizes, sizeof(int) * numLayers, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(d_weights, weights, sizeof(float) * numWeights, cudaMemcpyHostToDevice));
 
     printf("Begin testing (%d samples, %d samples per batch, %d batches, %d blocks, %d threads each)\n",
         testCases->numItems, batchSize, numBatches, numBlocks, threadsPerBlock);
@@ -1074,15 +1077,16 @@ float testNetworkGpu(float *weights, int numLayers, int *layerSizes, imageTraini
         int testDataBytesToCopy = sizeof(float) * thisBatchNumSamples * inDataWidth;
         int trueValuesBytesToCopy = sizeof(float) * thisBatchNumSamples * outDataWidth;
         // copy in the samples of this batch
-        cudaMemcpy(d_testData, testCases->inputSamples + testDataStartIndex, testDataBytesToCopy, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_trueValues, testCases->trueOutput + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice);
+        gpuErrchk(cudaMemcpy(d_testData, testCases->inputSamples + testDataStartIndex, testDataBytesToCopy, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpy(d_trueValues, testCases->trueOutput + trueValuesStartIndex, trueValuesBytesToCopy, cudaMemcpyHostToDevice));
         classifyAndCheckSample<<<numBlocks, threadsPerBlock>>>(
             d_weights, numLayers, d_layerSizes,
             d_testData, thisBatchNumSamples,
             d_trueValues, d_nodeValues,
             d_results
         );
-        cudaMemcpy(results, d_results, sizeof(int) * batchSize, cudaMemcpyDeviceToHost);
+        gpuErrchk(cudaPeekAtLastError());
+        gpuErrchk(cudaMemcpy(results, d_results, sizeof(int) * batchSize, cudaMemcpyDeviceToHost));
 
         // sum results
         for (int i = 0; i < thisBatchNumSamples; i ++)
