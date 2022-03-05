@@ -211,12 +211,7 @@ __global__ void k_updateNodeValues(
     int *layerSizes, int layerIndex
 )
 {
-    updateNodeValues(
-        threadIdx.x,
-        myWeightsIndex, nodeDataValuesInOffset, nodeDataValuesOutOffset,
-        initialWeights, nodeValuesIn, nodeValuesOut,
-        layerSizes, layerIndex
-    );
+    return;
 }
 
 __device__ void updateNodeValues(
@@ -248,12 +243,7 @@ __global__ void k_updateNodeErrors(
     int *layerSizes, int numLayers, int layerIndex
 )
 {
-    updateNodeErrors(
-        threadIdx.x,
-        myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset, trueValueStartIndex,
-        initialWeights, nodeValues, nodeErrors, trueValues,
-        layerSizes, numLayers, layerIndex
-    );
+    return;
 }
 
 __device__ void updateNodeErrors(
@@ -296,12 +286,7 @@ __global__ void k_updateWeights(
     int *layerSizes, int layerIndex, float learnRate
 )
 {
-    updateWeights(
-        threadIdx.x,
-        myWeightsIndex, nodeDataValuesOffset, nodeDataErrorsOffset,
-        scratchWeights, nodeValues, nodeErrors,
-        layerSizes, layerIndex, learnRate
-    );
+    return;
 }
 
 __device__ void updateWeights(
