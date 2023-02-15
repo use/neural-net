@@ -1,15 +1,17 @@
 # neural-net
 
-Live demo of a handwritten digit recognizer, using a network trained with this software:
-https://numbernet.netlify.app/
-
-Sister repo for the above demo: https://github.com/use/digit-recognizer
-
 This is a neural network trainer. The main software trains on the MNIST dataset - a collection of images + correct labels for 60,000 handwritten digits + 10,000 test cases. A CSV version of MNIST was obtained from https://www.kaggle.com/oddrationale/mnist-in-csv
 
 The software can train using the CPU in online mode, or the GPU in batch mode. The GPU implementation is currently much slower.
 
 The network can be configured to run with multiple layers but only one seems to be useful, with 20 neurons providing fast training plus good accuracy of around 94%.
+
+## Web-based practical demo
+
+Live demo of a handwritten digit recognizer, using a network trained with this software:
+https://numbernet.netlify.app/
+
+Sister repo for the above demo: https://github.com/use/digit-recognizer
 
 ## Requirements
 
